@@ -40,7 +40,12 @@ import adafruit_bus_device.i2c_device as i2c_device
 
 _BNO080_DEFAULT_ADDRESS = const(0x4A)
 _BNO080_RESET_CMD = const(0x01)
-_BNO080_CHANNEL_EXEC = const(0x01)
+_BNO080_EXEC_CHANNEL = const(0x01)
+_BNO080_CONTROL_CHANNEL = const(0x02)
+
+_SHTP_REPORT_PRODUCT_ID_RESPONSE = const(0xF8)
+_SHTP_REPORT_PRODUCT_ID_REQUEST = const(0xF9)
+
 MAX_READS=10
 _DATA_BUFFER_SIZE = const(512) # data buffer size. obviously eats ram
 _I2C_BUFFER_SIZE = const(32) # imaginary i2c buffer size. I don't believe this is nescessary but we'll use it for now to stay as close as possible to the reference code
@@ -60,39 +65,49 @@ class BNO080:
         self._data_buffer = bytearray(_DATA_BUFFER_SIZE)
         self._sequence_number = [0,0,0,0,0,0]
         self.reset()
+        self.check_id()
 
     def reset(self):
         data = bytearray(1)
         data[0] = 1
         print("Sending reset packet")
-        self._send_packet(_BNO080_CHANNEL_EXEC, data)
+        self._send_packet(_BNO080_EXEC_CHANNEL, data)
         self._dbg("PACKET SENT")
         sleep(0.050)
 
-        reads = 0
-        read_complete = False
         sleep(1)
-        while not read_complete:
-            print("Reading packet")
-            data_read = self._read_packet()
-            self._dbg("data read:", data_read)
-            read_complete = (data_read == False)
-            reads+=1
-            if reads >MAX_READS:
-                read_complete = True
-
-        sleep(0.050)
-        read_complete = False
-        reads = 0
-        while not read_complete:
+        data_read = True
+        while data_read:
             print("Still reading packet")
             data_read = self._read_packet()
             self._dbg("data read:", data_read)
-            read_complete = (data_read == False)
-            reads+=1
-            if reads >2:
-                read_complete = True
 
+        sleep(0.050)
+        data_read = True
+        while data_read:
+            print("Again reading packet")
+            data_read = self._read_packet()
+            self._dbg("data read:", data_read)
+
+    def check_id(self):
+        print("Checking ID:")
+        data = bytearray(2)
+        data[0] = _SHTP_REPORT_PRODUCT_ID_REQUEST
+        data[1] = 0 # padding
+        self._send_packet(_BNO080_CONTROL_CHANNEL, data)
+        if (self._read_packet()):
+            print("packet read!")
+            sensor_id = self._get_sensor_id()
+            if sensor_id:
+                print("Sensor id:", sensor_id)
+                return True
+
+        return False
+    def _get_sensor_id(self):
+        if not self._data_buffer[4] == _SHTP_REPORT_PRODUCT_ID_RESPONSE:
+            return None
+        print("ID response is good")
+        return "ABBAZABBA"
     def _send_packet(self, channel, data):
         self._dbg("")
         self._dbg("SENDing packet")
@@ -131,13 +146,7 @@ class BNO080:
         self._dbg("READing packet")
         self._print_header()
         packet_byte_count, channel_number, sequence_number = self.get_header()
-        # packet_byte_count = unpack_from("<H", self._data_buffer)[0]
-        # packet_byte_count &= ~0x8000
-        # channel_number = unpack_from("<B", self._data_buffer, offset=2)[0]
-        # sequence_number = unpack_from("<B", self._data_buffer, offset=3)[0]
 
-        # self._packet_byte_count = packet_byte_count
-        # self._packet_channel = channel_number
         self._sequence_number[channel_number] = sequence_number
 
         if packet_byte_count == 0:
