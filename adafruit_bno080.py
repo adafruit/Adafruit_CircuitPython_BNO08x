@@ -41,8 +41,8 @@ import adafruit_bus_device.i2c_device as i2c_device
 _BNO080_DEFAULT_ADDRESS = const(0x4A)
 _BNO080_RESET_CMD = const(0x01)
 _BNO080_CHANNEL_EXEC = const(0x01)
-
-_DATA_BUFFER_SIZE = const(128) # data buffer size. obviously eats ram
+MAX_READS=10
+_DATA_BUFFER_SIZE = const(512) # data buffer size. obviously eats ram
 _I2C_BUFFER_SIZE = const(32) # imaginary i2c buffer size. I don't believe this is nescessary but we'll use it for now to stay as close as possible to the reference code
 _HEADER_SIZE = const(4)
 _MAX_DATA_READ_LENGTH = _I2C_BUFFER_SIZE-_HEADER_SIZE
@@ -54,8 +54,8 @@ class BNO080:
 
     """
 
-    def __init__(self, i2c_bus, address=_BNO080_DEFAULT_ADDRESS):
-
+    def __init__(self, i2c_bus, address=_BNO080_DEFAULT_ADDRESS, debug=True):
+        self._debug=debug
         self.i2c_device = i2c_device.I2CDevice(i2c_bus, address)
         self._data_buffer = bytearray(_DATA_BUFFER_SIZE)
         self._sequence_number = [0,0,0,0,0,0]
@@ -64,44 +64,49 @@ class BNO080:
     def reset(self):
         data = bytearray(1)
         data[0] = 1
+        print("Sending reset packet")
         self._send_packet(_BNO080_CHANNEL_EXEC, data)
-        print("PACKET SENT")
+        self._dbg("PACKET SENT")
         sleep(0.050)
 
         reads = 0
         read_complete = False
+        sleep(1)
         while not read_complete:
-            print("reading packet")
-            data_read = self._read_packet() # which channel?
-            print("data read:", data_read)
+            print("Reading packet")
+            data_read = self._read_packet()
+            self._dbg("data read:", data_read)
             read_complete = (data_read == False)
             reads+=1
-            if reads >2:
+            if reads >MAX_READS:
                 read_complete = True
 
         sleep(0.050)
         read_complete = False
         reads = 0
         while not read_complete:
-            print("reading packet")
+            print("Still reading packet")
             data_read = self._read_packet()
-            print("data read:", data_read)
+            self._dbg("data read:", data_read)
             read_complete = (data_read == False)
             reads+=1
             if reads >2:
                 read_complete = True
 
     def _print_header(self):
-        print("Header:")
-        print("\tlen LSB:", hex(self._data_buffer[0]))
-        print("\tlen MSB:", hex(self._data_buffer[1]))
-        print("\tchannel:", self._data_buffer[2])
-        print("\tseq num:", self._data_buffer[3])
+        self._dbg("Header:")
+        self._dbg("\tlen LSB:", hex(self._data_buffer[0]))
+        self._dbg("\tlen MSB:", hex(self._data_buffer[1]))
+        self._dbg("\tchannel:", self._data_buffer[2])
+        self._dbg("\tseq num:", self._data_buffer[3])
 
     def _send_packet(self, channel, data):
+        self._dbg("")
+        self._dbg("SENDing packet")
         data_length = len(data)
         write_length = data_length+4
-        print("\tdata length:", data_length)
+        self._dbg("\tChannel:", channel)
+        self._dbg("\tData length:", data_length)
         # struct.pack_into(fmt, buffer, offset, *values)
         pack_into("<H", self._data_buffer,  0, write_length)
         self._data_buffer[2] = channel
@@ -111,10 +116,10 @@ class BNO080:
         for idx, send_byte in enumerate(data):
             self._data_buffer[4+idx] = send_byte
 
-        print("writing header:")
+        self._dbg("\tSend header:")
         self._print_header()
         with self.i2c_device as i2c:
-            print("writing header and data at once")
+            self._dbg("\twriting header and data at once")
             i2c.write(self._data_buffer, end=write_length)
 
         self._sequence_number[channel] += 1
@@ -130,7 +135,8 @@ class BNO080:
         with self.i2c_device as i2c:
             i2c.readinto(self._data_buffer, end=4) # this is expecting a header?
         # struct.unpack_from(fmt, data, offset=0)
-        print("header read:")
+        self._dbg("")
+        self._dbg("READing packet")
         self._print_header()
         packet_byte_count = unpack_from("<H", self._data_buffer)[0]
         packet_byte_count &= ~0x8000
@@ -145,132 +151,29 @@ class BNO080:
             return False
         # remove header size from read length
         packet_byte_count -= 4
+        self._dbg("channel", channel_number, "has", packet_byte_count, "bytes available to read")
         # TODO: exception handling
         data_remaining = self._read(packet_byte_count)
-        print("\tbytes remaining:", data_remaining)
+        if data_remaining:
+            self._dbg("Unread data still for channel", channel_number)
+      
         return True
 
     # returns true if all requested data was read
     def _read(self, requested_read_length):
-        print("trying to read", requested_read_length, "bytes")
-        # the next index in the data buffer to be written to
-        # used to keep track of position in buffer over multiple reads
-        data_buffer_offset = 0
-        current_read_len = 0
-        unread_bytes = requested_read_length
-        final_read = False
-        if requested_read_length > _DATA_BUFFER_SIZE:
-            requested_read_length = _DATA_BUFFER_SIZE
-            unread_bytes = requested_read_length-_DATA_BUFFER_SIZE
+        self._dbg("trying to read", requested_read_length, "bytes")
+        unread_bytes = 0
+        # +4 for the header
+        total_read_length = requested_read_length+4
+        if total_read_length > _DATA_BUFFER_SIZE:
+            unread_bytes = total_read_length-_DATA_BUFFER_SIZE
+            total_read_length = _DATA_BUFFER_SIZE
+        self._dbg("reading", total_read_length, "bytes(%d+4)"%requested_read_length, "leaving", unread_bytes, "unread bytes")
         with self.i2c_device as i2c:
-            i2c.readinto(self._data_buffer, end=requested_read_length)
-        # while unread_bytes >0 or data_buffer_offset > _DATA_BUFFER_SIZE:
-        #     print("read:(%d/%d)"%(requested_read_length-unread_bytes, requested_read_length))
-        #     # try to read all the bytes left unread
-        #     # trim to the size of the i2c buffer - 4 for header
-        #     current_read_len = unread_bytes
-        #     if current_read_len > (_MAX_DATA_READ_LENGTH):
-        #         current_read_len = _MAX_DATA_READ_LENGTH
+            i2c.readinto(self._data_buffer, end=total_read_length)
 
-        #     # if read would go past the end of the data buffer, trim the read to the available space
-        #     read_end_index = data_buffer_offset + current_read_len
-        #     print("dat_buffer_offset:", data_buffer_offset, "read len:", current_read_len, "end index:", read_end_index)
-        #     if  read_end_index > _DATA_BUFFER_SIZE:
-        #         current_read_len = _DATA_BUFFER_SIZE - data_buffer_offset
-
-        #     read_end_index = data_buffer_offset + current_read_len
-        #     print("%d bytes left in data buffer:"%(_DATA_BUFFER_SIZE-data_buffer_offset))
-        #     print("reading", current_read_len, "bytes")
-        #     # eadinto(buf, *, start=0, end=None)
-        #     with self.i2c_device as i2c:
-        #         i2c.readinto(self._data_buffer, start=data_buffer_offset, end=read_end_index)
-
-        #     unread_bytes -=current_read_len
-        # # we've either read everything or we ran out of space
         return ( unread_bytes > 0)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    #     """Reset the sensor to an initial unconfigured state"""
-    #     self._buffer[0] = _BNO080_HUM_CMD_RESET
-    #     with self.i2c_device as i2c:
-    #         i2c.write(self._buffer, end=1)
-
-    #     sleep(0.015)
-    #     self._buffer[0] = _BNO080_PT_CMD_RESET
-    #     with self.pressure_i2c_device as i2c:
-    #         i2c.write(self._buffer, end=1)
-
-    #     self._buffer[0] = _BNO080_PT_CALIB_ROM_ADDR + offset
-    #     with self.pressure_i2c_device as i2c:
-    #         i2c.write_then_readinto(
-    #             self._buffer,
-    #             self._buffer,
-    #             out_start=0,
-    #             out_end=1,
-    #             in_start=0,
-    #             in_end=2,
-    #         )
-
-    #     constants.extend(unpack_from(">H", self._buffer[0:2]))
-
-
-    #     # temp is only 24 bits but unpack wants 4 bytes so add a forth byte
-    #     self._buffer[0] = 0
-    #     raw_temperature = unpack_from(">I", self._buffer)[0]
-
-    #     # next read pressure
-    #     cmd = self._psensor_resolution_osr * 2
-    #     cmd |= _BNO080_PT_CMD_PRESS_START
-    #     self._buffer[0] = cmd
-    #     with self.pressure_i2c_device as i2c:
-    #         i2c.write(self._buffer, end=1)
-
-    #     sleep(integration_time)
-
-    #     self._buffer[0] = _BNO080_PT_CMD_READ_ADC
-    #     with self.pressure_i2c_device as i2c:
-    #         i2c.write_then_readinto(
-    #             self._buffer, self._buffer, out_start=0, out_end=1, in_start=1, in_end=3
-    #         )
-    #     # pressure is only 24 bits but unpack wants 4 bytes so add a forth byte
-    #     self._buffer[0] = 0
-
-    #     raw_pressure = unpack_from(">I", self._buffer)[0]
-    #     return raw_temperature, raw_pressure
-
-    #     with self.i2c_device as i2c:
-    #         i2c.readinto(self._buffer, end=1)
-
-    #     return self._buffer[0]
-
-    # def _set_hum_user_register(self, register_value):
-    #     self._buffer[0] = _BNO080_HUM_CMD_WRITE_USR
-    #     self._buffer[1] = register_value
-    #     with self.i2c_device as i2c:
-    #         # shouldn't this end at two?
-    #         i2c.write(self._buffer, end=2)
+    def _dbg(self, *args):
+        if self._debug:
+            print("\tDBG::", *args)
