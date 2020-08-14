@@ -106,8 +106,27 @@ class BNO080:
     def _get_sensor_id(self):
         if not self._data_buffer[4] == _SHTP_REPORT_PRODUCT_ID_RESPONSE:
             return None
-        print("ID response is good")
-        return "ABBAZABBA"
+        # 0 Report ID = 0xF8
+        # 1 Reset Cause
+        # 2 SW Version Major
+        # 3 SW Version Minor
+        # 4 SW Part Number LSB
+        # 5 SW Part Number …
+        # 6 SW Part Number …
+        # 7 SW Part Number MSB
+        # 8 SW Build Number LSB
+        # 9 SW Build Number …
+        # 10 SW Build Number …
+        # 11 SW Build Number MSB
+        # 12 SW Version Patch LSB
+        # 13 SW Version Patch MSB
+        # 14 Reserved
+        # 15 Reserved
+        sw_major = self._get_data(2, "<B")
+        sw_minor = self._get_data(3, "<B")
+        sw_patch = self._get_data(12,"<H")
+        print("*** Software Version: %d.%d.%d"%(sw_major, sw_minor, sw_patch))
+    
     def _send_packet(self, channel, data):
         self._dbg("")
         self._dbg("SENDing packet")
@@ -202,3 +221,7 @@ class BNO080:
         self._dbg("\tLen: %d (%s) "%(packet_byte_count, hex(raw_len_bytes)))
         self._dbg("\tChannel:", channel_number)
         self._dbg("\tSequence number:", sequence_number)
+    def _get_data(self, index, fmt_string):
+        # index arg is not including header, so add 4 into data buffer
+        data_index = index+4
+        return unpack_from(fmt_string, self._data_buffer, offset=data_index)[0]
