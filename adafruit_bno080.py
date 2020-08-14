@@ -1,4 +1,3 @@
-# SPDX-FileCopyrightText: 2017 Scott Shawcroft, written for Adafruit Industries
 # SPDX-FileCopyrightText: Copyright (c) 2020 Bryan Siepert for Adafruit Industries
 #
 # SPDX-License-Identifier: MIT
@@ -6,7 +5,7 @@
 `adafruit_bno080`
 ================================================================================
 
-CircuitPython driver for the BNO080 PTH sensor
+CircuitPython driver for the BNO080 IMU
 
 
 * Author(s): Bryan Siepert
@@ -16,7 +15,7 @@ Implementation Notes
 
 **Hardware:**
 
-* `Adafruit AS7341 Breakout <https:#www.adafruit.com/products/4716>`_
+* `Adafruit BNO080 Breakout <https:#www.adafruit.com/products/47XX>`_
 
 **Software and Dependencies:**
 
@@ -24,7 +23,6 @@ Implementation Notes
   https:#github.com/adafruit/circuitpython/releases
 
  * Adafruit's Bus Device library: https:#github.com/adafruit/Adafruit_CircuitPython_BusDevice
- * Adafruit's Register library: https:#github.com/adafruit/Adafruit_CircuitPython_Register
 
 """
 
@@ -59,7 +57,7 @@ class BNO080:
 
     """
 
-    def __init__(self, i2c_bus, address=_BNO080_DEFAULT_ADDRESS, debug=True):
+    def __init__(self, i2c_bus, address=_BNO080_DEFAULT_ADDRESS, debug=False):
         self._debug=debug
         self.i2c_device = i2c_device.I2CDevice(i2c_bus, address)
         self._data_buffer = bytearray(_DATA_BUFFER_SIZE)
