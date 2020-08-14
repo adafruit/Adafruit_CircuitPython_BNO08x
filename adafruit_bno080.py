@@ -93,13 +93,6 @@ class BNO080:
             if reads >2:
                 read_complete = True
 
-    def _print_header(self):
-        self._dbg("Header:")
-        self._dbg("\tlen LSB:", hex(self._data_buffer[0]))
-        self._dbg("\tlen MSB:", hex(self._data_buffer[1]))
-        self._dbg("\tchannel:", self._data_buffer[2])
-        self._dbg("\tseq num:", self._data_buffer[3])
-
     def _send_packet(self, channel, data):
         self._dbg("")
         self._dbg("SENDing packet")
@@ -116,8 +109,8 @@ class BNO080:
         for idx, send_byte in enumerate(data):
             self._data_buffer[4+idx] = send_byte
 
-        self._dbg("\tSend header:")
-        self._print_header()
+        # self._dbg("\tSend header:")
+        self._print_header(False)
         with self.i2c_device as i2c:
             self._dbg("\twriting header and data at once")
             i2c.write(self._data_buffer, end=write_length)
@@ -125,7 +118,6 @@ class BNO080:
         self._sequence_number[channel] += 1
 
         return
-
     # returns true if available data was read
     # the sensor will always tell us how much there is, so no need to track it ourselves
     def _read_packet(self):
@@ -138,10 +130,11 @@ class BNO080:
         self._dbg("")
         self._dbg("READing packet")
         self._print_header()
-        packet_byte_count = unpack_from("<H", self._data_buffer)[0]
-        packet_byte_count &= ~0x8000
-        channel_number = unpack_from("<B", self._data_buffer, offset=2)[0]
-        sequence_number = unpack_from("<B", self._data_buffer, offset=3)[0]
+        packet_byte_count, channel_number, sequence_number = self.get_header()
+        # packet_byte_count = unpack_from("<H", self._data_buffer)[0]
+        # packet_byte_count &= ~0x8000
+        # channel_number = unpack_from("<B", self._data_buffer, offset=2)[0]
+        # sequence_number = unpack_from("<B", self._data_buffer, offset=3)[0]
 
         # self._packet_byte_count = packet_byte_count
         # self._packet_channel = channel_number
@@ -154,6 +147,10 @@ class BNO080:
         self._dbg("channel", channel_number, "has", packet_byte_count, "bytes available to read")
         # TODO: exception handling
         data_remaining = self._read(packet_byte_count)
+        self._print_header()
+        data_len, channel, seq = self.get_header()
+        self._sequence_number[channel] = seq
+
         if data_remaining:
             self._dbg("Unread data still for channel", channel_number)
       
@@ -174,6 +171,25 @@ class BNO080:
 
         return ( unread_bytes > 0)
 
-    def _dbg(self, *args):
+    def get_header(self):
+
+        packet_byte_count = unpack_from("<H", self._data_buffer)[0]
+        packet_byte_count &= ~0x8000
+        channel_number = unpack_from("<B", self._data_buffer, offset=2)[0]
+        sequence_number = unpack_from("<B", self._data_buffer, offset=3)[0]
+        return (packet_byte_count, channel_number, sequence_number)
+    def _dbg(self, *args, **kwargs):
         if self._debug:
-            print("\tDBG::", *args)
+            print("\tDBG::", *args, **kwargs)
+
+    def _print_header(self, read=True):
+        packet_byte_count, channel_number, sequence_number = self.get_header()
+
+
+        self._dbg("HEADER:")
+        raw_len_bytes = self._data_buffer[1]<<8 |self._data_buffer[0]
+        is_continue = (self._data_buffer[1] & 0x80 > 0)
+        if is_continue: self._dbg("\tCONTINUE")
+        self._dbg("\tLen: %d (%s) "%(packet_byte_count, hex(raw_len_bytes)))
+        self._dbg("\tChannel:", channel_number)
+        self._dbg("\tSequence number:", sequence_number)
