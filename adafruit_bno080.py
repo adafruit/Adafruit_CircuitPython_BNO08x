@@ -104,7 +104,7 @@ _BNO_REPORT_ARVR_STABILIZED_GAME_ROTATION_VECTOR = const(0x29)
 _QUAT_REPORT_INTERVAL = const(50000)  # in microseconds = 50ms
 _QUAT_READ_TIMEOUT = 1.000  # timeout in seconds
 _BNO080_CMD_RESET = const(0x01)
-
+_QUAT_Q_POINT = const(14)
 _BNO080_DEFAULT_ADDRESS = const(0x4A)
 _BNO_HEADER_LEN = const(4)
 
@@ -130,6 +130,11 @@ def _get_header(packet_bytes):
     header = PacketHeader(packet_byte_count - 4, channel_number, sequence_number)
     return header
 
+# we can memoize the q point scalars if need be
+def _fixed_to_float(int_value, q_point):
+    q_point_scalar = 2**(q_point *-1)
+    print("int:", int_value,"(%s)"%hex(int_value), "q_point:", q_point, "q_point_scalar:", q_point_scalar, "float:", (int_value * q_point_scalar))
+    return int_value * q_point_scalar
 
 def _parse_quat(packet):
     if packet.data[5] != _BNO_REPORT_ROTATION_VECTOR:
@@ -137,9 +142,9 @@ def _parse_quat(packet):
 
     status = unpack_from("<B", packet.data, offset=5 + 2)[0]
     status &= 0x03
-    raw_quat_i = unpack_from("<H", packet.data, offset=5 + 5)[0]
-    raw_quat_j = unpack_from("<H", packet.data, offset=5 + 7)[0]
-    raw_quat_k = unpack_from("<H", packet.data, offset=5 + 9)[0]
+    raw_quat_i = _fixed_to_float(unpack_from("<H", packet.data, offset=5 + 4)[0], _QUAT_Q_POINT)
+    raw_quat_j = _fixed_to_float(unpack_from("<H", packet.data, offset=5 + 6)[0], _QUAT_Q_POINT)
+    raw_quat_k = _fixed_to_float(unpack_from("<H", packet.data, offset=5 + 8)[0], _QUAT_Q_POINT)
     quat_accuracy = _BNO_REPORT_STATUS[status]
 
     return Quaternion(raw_quat_i, raw_quat_j, raw_quat_k, quat_accuracy)
@@ -165,7 +170,6 @@ Protocol** packet"""
         for _idx, _byte in enumerate(self.data):
             outstr += "\t[%0.2d] %x\n" % (_idx, _byte)
         return outstr
-
 
 class BNO080:
     """Library for the BNO080 IMU from Hillcrest Laboratories
