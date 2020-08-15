@@ -260,11 +260,13 @@ class BNO080:
         sw_part_number = self._get_data(4, "<I")
         sw_build_number = self._get_data(8, "<I")
 
-        print("")
-        print("*** Part Number: %d" % sw_part_number)
-        print("*** Software Version: %d.%d.%d" % (sw_major, sw_minor, sw_patch), end="")
-        print(" Build: %d" % (sw_build_number))
-        print("")
+        self._dbg("")
+        self._dbg("*** Part Number: %d" % sw_part_number)
+        self._dbg(
+            "*** Software Version: %d.%d.%d" % (sw_major, sw_minor, sw_patch), end=""
+        )
+        self._dbg(" Build: %d" % (sw_build_number))
+        self._dbg("")
         return sw_part_number
 
     def _send_packet(self, channel, data):
@@ -277,18 +279,20 @@ class BNO080:
         # struct.pack_into(fmt, buffer, offset, *values)
         pack_into("<H", self._data_buffer, 0, write_length)
         self._data_buffer[2] = channel
+
         self._data_buffer[3] = self._sequence_number[channel]
 
         # this is dumb but it's what we have for now
         for idx, send_byte in enumerate(data):
             self._data_buffer[4 + idx] = send_byte
 
-        self._print_header()
+        self._dbg_print_header()
+
         with self.i2c_device as i2c:
             self._dbg("\twriting header and data at once")
             i2c.write(self._data_buffer, end=write_length)
 
-        self._sequence_number[channel] += 1
+        self._sequence_number[channel] = (self._sequence_number[channel] + 1) % 256
 
     # returns true if available data was read
     # the sensor will always tell us how much there is, so no need to track it ourselves
@@ -301,7 +305,8 @@ class BNO080:
         # struct.unpack_from(fmt, data, offset=0)
         self._dbg("")
         self._dbg("READing packet")
-        self._print_header()
+        self._dbg_print_header()
+
         packet_byte_count, channel_number, sequence_number = self._get_header()
 
         self._sequence_number[channel_number] = sequence_number
@@ -319,7 +324,8 @@ class BNO080:
         )
         # TODO: exception handling
         data_remaining = self._read(packet_byte_count)
-        self._print_header()
+        self._dbg_print_header()
+
         _data_len, channel, seq = self._get_header()
         self._sequence_number[channel] = seq
 
@@ -362,7 +368,7 @@ class BNO080:
         if self._debug:
             print("\tDBG::", *args, **kwargs)
 
-    def _print_header(self):
+    def _dbg_print_header(self):
         packet_byte_count, channel_number, sequence_number = self._get_header()
 
         self._dbg("HEADER:")
