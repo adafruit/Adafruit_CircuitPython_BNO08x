@@ -130,21 +130,46 @@ def _get_header(packet_bytes):
     header = PacketHeader(packet_byte_count - 4, channel_number, sequence_number)
     return header
 
+
 # we can memoize the q point scalars if need be
 def _fixed_to_float(int_value, q_point):
-    q_point_scalar = 2**(q_point *-1)
-    print("int:", int_value,"(%s)"%hex(int_value), "q_point:", q_point, "q_point_scalar:", q_point_scalar, "float:", (int_value * q_point_scalar))
+    q_point_scalar = 2 ** (q_point * -1)
+    print(
+        "int:",
+        int_value,
+        "(%s)" % hex(int_value),
+        "q_point:",
+        q_point,
+        "q_point_scalar:",
+        q_point_scalar,
+        "float:",
+        (int_value * q_point_scalar),
+    )
     return int_value * q_point_scalar
 
+
 def _parse_quat(packet):
-    if packet.data[5] != _BNO_REPORT_ROTATION_VECTOR:
-        return None
+
 
     status = unpack_from("<B", packet.data, offset=5 + 2)[0]
     status &= 0x03
-    raw_quat_i = _fixed_to_float(unpack_from("<H", packet.data, offset=5 + 4)[0], _QUAT_Q_POINT)
-    raw_quat_j = _fixed_to_float(unpack_from("<H", packet.data, offset=5 + 6)[0], _QUAT_Q_POINT)
-    raw_quat_k = _fixed_to_float(unpack_from("<H", packet.data, offset=5 + 8)[0], _QUAT_Q_POINT)
+    raw_quat_i = _fixed_to_float(
+        unpack_from("<H", packet.data, offset=5 + 4)[0], _QUAT_Q_POINT
+    )
+    raw_quat_j = _fixed_to_float(
+        unpack_from("<H", packet.data, offset=5 + 6)[0], _QUAT_Q_POINT
+    )
+    raw_quat_k = _fixed_to_float(
+        unpack_from("<H", packet.data, offset=5 + 8)[0], _QUAT_Q_POINT
+    )
+    print("before:", end="")
+    before = _fixed_to_float(
+        unpack_from("<H", packet.data, offset=5 + 2)[0], _QUAT_Q_POINT
+    )
+    print("after:", end="")
+    after = _fixed_to_float(
+        unpack_from("<H", packet.data, offset=5 + 10)[0], _QUAT_Q_POINT
+    )
     quat_accuracy = _BNO_REPORT_STATUS[status]
 
     return Quaternion(raw_quat_i, raw_quat_j, raw_quat_k, quat_accuracy)
@@ -170,6 +195,7 @@ Protocol** packet"""
         for _idx, _byte in enumerate(self.data):
             outstr += "\t[%0.2d] %x\n" % (_idx, _byte)
         return outstr
+
 
 class BNO080:
     """Library for the BNO080 IMU from Hillcrest Laboratories
@@ -234,7 +260,8 @@ class BNO080:
                 break
             new_packet = Packet(self._data_buffer)
             if new_packet.header.channel_number == _BNO_CHANNEL_INPUT_SENSOR_REPORTS:
-                quat = _parse_quat(new_packet)
+                if new_packet.data[5] == _BNO_REPORT_ROTATION_VECTOR:
+                    return _parse_quat(new_packet)
 
         if quat:
             return quat
