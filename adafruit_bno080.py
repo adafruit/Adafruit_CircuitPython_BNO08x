@@ -110,10 +110,12 @@ _BNO_HEADER_LEN = const(4)
 
 
 _DATA_BUFFER_SIZE = const(512)  # data buffer size. obviously eats ram
-Quaternion = namedtuple("Quaternion", ["i", "j", "k", "real", "accuracy",],)
+Quaternion = namedtuple("Quaternion", ["i", "j", "k", "accuracy",],)
 PacketHeader = namedtuple(
     "PacketHeader", ["data_length", "channel_number", "sequence_number",],
 )
+
+_BNO_REPORT_STATUS = ["Unreliable", "Accuracy low", "Accuracy medium", "Accuracy high"]
 
 
 def _elapsed(start_time):
@@ -127,6 +129,20 @@ def _get_header(packet_bytes):
     sequence_number = unpack_from("<B", packet_bytes, offset=3)[0]
     header = PacketHeader(packet_byte_count - 4, channel_number, sequence_number)
     return header
+
+
+def _parse_quat(packet):
+    if packet.data[5] != _BNO_REPORT_ROTATION_VECTOR:
+        return None
+
+    status = unpack_from("<B", packet.data, offset=5 + 2)[0]
+    status &= 0x03
+    raw_quat_i = unpack_from("<H", packet.data, offset=5 + 5)[0]
+    raw_quat_j = unpack_from("<H", packet.data, offset=5 + 7)[0]
+    raw_quat_k = unpack_from("<H", packet.data, offset=5 + 9)[0]
+    quat_accuracy = _BNO_REPORT_STATUS[status]
+
+    return Quaternion(raw_quat_i, raw_quat_j, raw_quat_k, quat_accuracy)
 
 
 class Packet:
@@ -171,7 +187,6 @@ class BNO080:
         """Reset the sensor to an initial unconfigured state"""
         data = bytearray(1)
         data[0] = 1
-        print("Sending reset packet")
         self._send_packet(_BNO_CHANNEL_EXE, data)
         self._dbg("PACKET SENT")
         sleep(0.050)
@@ -179,14 +194,12 @@ class BNO080:
         sleep(1)
         data_read = True
         while data_read:
-            print("Still reading packet")
             data_read = self._read_packet()
             self._dbg("data read:", data_read)
 
         sleep(0.050)
         data_read = True
         while data_read:
-            print("Again reading packet")
             data_read = self._read_packet()
             self._dbg("data read:", data_read)
 
@@ -207,33 +220,31 @@ class BNO080:
         quat_i = 0.0
         quat_j = 0.0
         quat_k = 0.0
-        quat_real = 0.0
         quat_accuracy = 0.0
-
+        quat = None
         # receive packets, and dump until you get a quat packet
         start_time = monotonic()
         while _elapsed(start_time) < _QUAT_READ_TIMEOUT:
             data_was_read = self._read_packet()
             if not data_was_read:
                 break
-            print("Got a packet")
             new_packet = Packet(self._data_buffer)
-            print(new_packet)
+            if new_packet.header.channel_number == _BNO_CHANNEL_INPUT_SENSOR_REPORTS:
+                quat = _parse_quat(new_packet)
 
-        print("returning blank quaternion")
-        return Quaternion(quat_i, quat_j, quat_k, quat_real, quat_accuracy)
+        if quat:
+            return quat
+
+        return Quaternion(quat_i, quat_j, quat_k, quat_accuracy)
 
     def _check_id(self):
-        print("Checking ID:")
         data = bytearray(2)
         data[0] = _SHTP_REPORT_PRODUCT_ID_REQUEST
         data[1] = 0  # padding
         self._send_packet(_BNO_CHANNEL_CONTROL, data)
         if self._read_packet():
-            print("packet read!")
             sensor_id = self._get_sensor_id()
             if sensor_id:
-                print("Sensor id:", sensor_id)
                 return True
 
         return False
@@ -248,9 +259,12 @@ class BNO080:
         sw_patch = self._get_data(12, "<H")
         sw_part_number = self._get_data(4, "<I")
         sw_build_number = self._get_data(8, "<I")
+
+        print("")
         print("*** Part Number: %d" % sw_part_number)
         print("*** Software Version: %d.%d.%d" % (sw_major, sw_minor, sw_patch), end="")
         print(" Build: %d" % (sw_build_number))
+        print("")
         return sw_part_number
 
     def _send_packet(self, channel, data):
