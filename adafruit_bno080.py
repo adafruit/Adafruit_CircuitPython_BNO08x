@@ -135,36 +135,25 @@ def _get_header(packet_bytes):
 
 
 def _parse_quat(packet):
-
     status_int = unpack_from("<B", packet.data, offset=7)[0]
     status_int &= 0x03
-    quat_i = unpack_from("<H", packet.data, offset=9)[0] * _Q_POINT_14_SCALAR
-    quat_j = unpack_from("<H", packet.data, offset=11)[0] * _Q_POINT_14_SCALAR
-    quat_k = unpack_from("<H", packet.data, offset=13)[0] * _Q_POINT_14_SCALAR
-    quat_real = unpack_from("<H", packet.data, offset=15)[0] * _Q_POINT_14_SCALAR
-    acc_est = unpack_from("<H", packet.data, offset=17)[0] * _Q_POINT_12_SCALAR
+
+    i_raw = unpack_from("<h", packet.data, offset=9)[0]
+    quat_i = i_raw * _Q_POINT_14_SCALAR
+
+    j_raw = unpack_from("<h", packet.data, offset=11)[0]
+    quat_j = j_raw * _Q_POINT_14_SCALAR
+
+    k_raw = unpack_from("<h", packet.data, offset=13)[0]
+    quat_k = k_raw * _Q_POINT_14_SCALAR
+
+    real_raw = unpack_from("<h", packet.data, offset=15)[0]
+    quat_real = real_raw * _Q_POINT_14_SCALAR
+    acc_est = unpack_from("<h", packet.data, offset=17)[0] * _Q_POINT_12_SCALAR
 
     return (quat_i, quat_j, quat_k, quat_real, acc_est, status_int)
 
 
-# This function pulls the data from the command response report
-
-# Unit responds with packet that contains the following:
-# shtpHeader[0:3]: First, a 4 byte header
-# shtpData[0]: The Report ID
-# shtpData[1]: Sequence number (See 6.5.18.2)
-# shtpData[2]: Command
-# shtpData[3]: Command Sequence Number
-# shtpData[4]: Response Sequence Number
-# shtpData[5 + 0]: R0
-# shtpData[5 + 1]: R1
-# shtpData[5 + 2]: R2
-# shtpData[5 + 3]: R3
-# shtpData[5 + 4]: R4
-# shtpData[5 + 5]: R5
-# shtpData[5 + 6]: R6
-# shtpData[5 + 7]: R7
-# shtpData[5 + 8]: R8
 class Packet:
     """A class representing a Hillcrest Laboratory **Sensor Hub Transport
 Protocol** packet"""
@@ -224,9 +213,6 @@ class BNO080:
             data_read = self._read_packet()
             self._dbg("data read:", data_read)
 
-    # Constructs a report  to set a feature
-    # later: class-ify
-    # def _set_feature_report(self, feature_id):
     @property
     def rotation_vector(self):
         """A quaternion representing the current rotation vector"""
@@ -265,6 +251,9 @@ class BNO080:
 
         return Quaternion(quat_i, quat_j, quat_k, quat_real, acc_est, status_int)
 
+    # Constructs a report  to set a feature
+    # later: class-ify
+    # def _set_feature_report(self, feature_id):
     def _enable_rotation_vector(self):
 
         set_feature_report = bytearray(17)
@@ -273,6 +262,8 @@ class BNO080:
         pack_into("<I", set_feature_report, 5, _QUAT_REPORT_INTERVAL)
 
         self._send_packet(_BNO_CHANNEL_CONTROL, set_feature_report)
+        # There is a substantial delay until data is available
+        sleep(0.2)
 
     def _check_id(self):
         data = bytearray(2)
