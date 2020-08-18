@@ -20,12 +20,12 @@ Implementation Notes
 **Software and Dependencies:**
 
 * Adafruit CircuitPython firmware for the supported boards:
-  https://github.com/adafruit/circuitpython/releases
+  https:# github.com/adafruit/circuitpython/releases
 
-* `Adafruit's Bus Device library <https://github.com/adafruit/Adafruit_CircuitPython_BusDevice>`_
+* `Adafruit's Bus Device library <https:# github.com/adafruit/Adafruit_CircuitPython_BusDevice>`_
 """
 __version__ = "0.0.0-auto.0"
-__repo__ = "https://github.com/adafruit/Adafruit_CircuitPython_BNO080.git"
+__repo__ = "https:# github.com/adafruit/Adafruit_CircuitPython_BNO080.git"
 
 from struct import unpack_from, pack_into
 from collections import namedtuple
@@ -108,14 +108,17 @@ _QUAT_Q_POINT = const(14)
 _BNO080_DEFAULT_ADDRESS = const(0x4A)
 _BNO_HEADER_LEN = const(4)
 
+_Q_POINT_14_SCALAR = 2 ** (14 * -1)
+_Q_POINT_12_SCALAR = 2 ** (12 * -1)
+
 
 _DATA_BUFFER_SIZE = const(512)  # data buffer size. obviously eats ram
-Quaternion = namedtuple("Quaternion", ["i", "j", "k", "accuracy",],)
+Quaternion = namedtuple("Quaternion", ["i", "j", "k", "real", "accuracy", "status"],)
 PacketHeader = namedtuple(
     "PacketHeader", ["data_length", "channel_number", "sequence_number",],
 )
 
-_BNO_REPORT_STATUS = ["Unreliable", "Accuracy low", "Accuracy medium", "Accuracy high"]
+REPORT_STATUS = ["Unreliable", "Accuracy low", "Accuracy medium", "Accuracy high"]
 
 
 def _elapsed(start_time):
@@ -131,50 +134,37 @@ def _get_header(packet_bytes):
     return header
 
 
-# we can memoize the q point scalars if need be
-def _fixed_to_float(int_value, q_point):
-    q_point_scalar = 2 ** (q_point * -1)
-    print(
-        "int:",
-        int_value,
-        "(%s)" % hex(int_value),
-        "q_point:",
-        q_point,
-        "q_point_scalar:",
-        q_point_scalar,
-        "float:",
-        (int_value * q_point_scalar),
-    )
-    return int_value * q_point_scalar
-
-
 def _parse_quat(packet):
 
+    status_int = unpack_from("<B", packet.data, offset=7)[0]
+    status_int &= 0x03
+    quat_i = unpack_from("<H", packet.data, offset=9)[0] * _Q_POINT_14_SCALAR
+    quat_j = unpack_from("<H", packet.data, offset=11)[0] * _Q_POINT_14_SCALAR
+    quat_k = unpack_from("<H", packet.data, offset=13)[0] * _Q_POINT_14_SCALAR
+    quat_real = unpack_from("<H", packet.data, offset=15)[0] * _Q_POINT_14_SCALAR
+    acc_est = unpack_from("<H", packet.data, offset=17)[0] * _Q_POINT_12_SCALAR
 
-    status = unpack_from("<B", packet.data, offset=5 + 2)[0]
-    status &= 0x03
-    raw_quat_i = _fixed_to_float(
-        unpack_from("<H", packet.data, offset=5 + 4)[0], _QUAT_Q_POINT
-    )
-    raw_quat_j = _fixed_to_float(
-        unpack_from("<H", packet.data, offset=5 + 6)[0], _QUAT_Q_POINT
-    )
-    raw_quat_k = _fixed_to_float(
-        unpack_from("<H", packet.data, offset=5 + 8)[0], _QUAT_Q_POINT
-    )
-    print("before:", end="")
-    before = _fixed_to_float(
-        unpack_from("<H", packet.data, offset=5 + 2)[0], _QUAT_Q_POINT
-    )
-    print("after:", end="")
-    after = _fixed_to_float(
-        unpack_from("<H", packet.data, offset=5 + 10)[0], _QUAT_Q_POINT
-    )
-    quat_accuracy = _BNO_REPORT_STATUS[status]
-
-    return Quaternion(raw_quat_i, raw_quat_j, raw_quat_k, quat_accuracy)
+    return (quat_i, quat_j, quat_k, quat_real, acc_est, status_int)
 
 
+# This function pulls the data from the command response report
+
+# Unit responds with packet that contains the following:
+# shtpHeader[0:3]: First, a 4 byte header
+# shtpData[0]: The Report ID
+# shtpData[1]: Sequence number (See 6.5.18.2)
+# shtpData[2]: Command
+# shtpData[3]: Command Sequence Number
+# shtpData[4]: Response Sequence Number
+# shtpData[5 + 0]: R0
+# shtpData[5 + 1]: R1
+# shtpData[5 + 2]: R2
+# shtpData[5 + 3]: R3
+# shtpData[5 + 4]: R4
+# shtpData[5 + 5]: R5
+# shtpData[5 + 6]: R6
+# shtpData[5 + 7]: R7
+# shtpData[5 + 8]: R8
 class Packet:
     """A class representing a Hillcrest Laboratory **Sensor Hub Transport
 Protocol** packet"""
@@ -212,6 +202,7 @@ class BNO080:
         self._sequence_number = [0, 0, 0, 0, 0, 0]
         self.reset()
         self._check_id()
+        self._enable_rotation_vector()
 
     def reset(self):
         """Reset the sensor to an initial unconfigured state"""
@@ -240,17 +231,13 @@ class BNO080:
     def rotation_vector(self):
         """A quaternion representing the current rotation vector"""
         # create and send a packet to enable the quaternion data
-        set_feature_report = bytearray(17)
-        set_feature_report[0] = _BNO_CMD_SET_FEATURE_COMMAND
-        set_feature_report[1] = _BNO_REPORT_ROTATION_VECTOR
-        pack_into("<I", set_feature_report, 5, _QUAT_REPORT_INTERVAL)
-
-        self._send_packet(_BNO_CHANNEL_CONTROL, set_feature_report)
 
         quat_i = 0.0
         quat_j = 0.0
         quat_k = 0.0
-        quat_accuracy = 0.0
+        quat_real = 0.00
+        acc_est = 0.0
+        status_int = None
         quat = None
         # receive packets, and dump until you get a quat packet
         start_time = monotonic()
@@ -261,12 +248,31 @@ class BNO080:
             new_packet = Packet(self._data_buffer)
             if new_packet.header.channel_number == _BNO_CHANNEL_INPUT_SENSOR_REPORTS:
                 if new_packet.data[5] == _BNO_REPORT_ROTATION_VECTOR:
-                    return _parse_quat(new_packet)
+                    (
+                        quat_i,
+                        quat_j,
+                        quat_k,
+                        quat_real,
+                        acc_est,
+                        status_int,
+                    ) = _parse_quat(new_packet)
+                    return Quaternion(
+                        quat_i, quat_j, quat_k, quat_real, acc_est, status_int
+                    )
 
         if quat:
             return quat
 
-        return Quaternion(quat_i, quat_j, quat_k, quat_accuracy)
+        return Quaternion(quat_i, quat_j, quat_k, quat_real, acc_est, status_int)
+
+    def _enable_rotation_vector(self):
+
+        set_feature_report = bytearray(17)
+        set_feature_report[0] = _BNO_CMD_SET_FEATURE_COMMAND
+        set_feature_report[1] = _BNO_REPORT_ROTATION_VECTOR
+        pack_into("<I", set_feature_report, 5, _QUAT_REPORT_INTERVAL)
+
+        self._send_packet(_BNO_CHANNEL_CONTROL, set_feature_report)
 
     def _check_id(self):
         data = bytearray(2)
