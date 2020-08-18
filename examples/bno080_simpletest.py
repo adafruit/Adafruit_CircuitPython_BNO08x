@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2017 Scott Shawcroft, written for Adafruit Industries
+# SPDX-FileCopyrightText: 2020 Bryan Siepert, written for Adafruit Industries
 #
 # SPDX-License-Identifier: Unlicense
 from time import sleep

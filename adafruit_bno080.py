@@ -191,7 +191,7 @@ class BNO080:
         self._sequence_number = [0, 0, 0, 0, 0, 0]
         self.reset()
         self._check_id()
-        self._enable_rotation_vector()
+        self._enable_quaternion()
 
     def reset(self):
         """Reset the sensor to an initial unconfigured state"""
@@ -214,7 +214,7 @@ class BNO080:
             self._dbg("data read:", data_read)
 
     @property
-    def rotation_vector(self):
+    def quaternion(self):
         """A quaternion representing the current rotation vector"""
         # create and send a packet to enable the quaternion data
 
@@ -254,7 +254,7 @@ class BNO080:
     # Constructs a report  to set a feature
     # later: class-ify
     # def _set_feature_report(self, feature_id):
-    def _enable_rotation_vector(self):
+    def _enable_quaternion(self):
 
         set_feature_report = bytearray(17)
         set_feature_report[0] = _BNO_CMD_SET_FEATURE_COMMAND
