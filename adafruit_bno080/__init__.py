@@ -306,7 +306,7 @@ class BNO080:
 
     def _dbg(self, *args, **kwargs):
         if self._debug:
-            print("\tDBG::", *args, **kwargs)
+            print("DBG::\t\t", *args, **kwargs)
 
     def _dbg_print_header(self):
         packet_byte_count, channel_number, sequence_number = self._get_header()
@@ -319,6 +319,7 @@ class BNO080:
         self._dbg("\tLen: %d (%s) " % (packet_byte_count, hex(raw_len_bytes)))
         self._dbg("\tChannel:", channel_number)
         self._dbg("\tSequence number:", sequence_number)
+        self._dbg()
 
     def _get_data(self, index, fmt_string):
         # index arg is not including header, so add 4 into data buffer
