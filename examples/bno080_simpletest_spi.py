@@ -11,14 +11,16 @@ from adafruit_bno080 import REPORT_STATUS
 spi = busio.SPI(board.SCK, MISO=board.MISO, MOSI=board.MOSI)
 cs = DigitalInOut(board.D5)
 cs.direction = Direction.OUTPUT
+
+sleep(1)
 bno = BNO080_SPI(spi, cs, debug=True)
 print("We made it out!")
 while True:
     quat = bno.quaternion  # pylint:disable=no-member
     print("Rotation Vector Quaternion:")
     print(
-        "I: %0.6f  J: %0.6f K: %0.6f  Real: %0.6f  Accuracy Estimate: %0.6f Status: %s"
-        % (quat.i, quat.j, quat.k, quat.real, quat.accuracy, REPORT_STATUS[quat.status])
+        "I: %0.6f  J: %0.6f K: %0.6f  Real: %0.6f"
+        % (quat.i, quat.j, quat.k, quat.real)
     )
     print("")
     sleep(0.5)

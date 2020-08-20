@@ -41,7 +41,7 @@ class BNO080_I2C(BNO080):
         for idx, send_byte in enumerate(data):
             self._data_buffer[4 + idx] = send_byte
 
-        self._dbg_print_header()
+        self._print_header()
 
         with self.i2c_device as i2c:
             self._dbg("\twriting header and data at once")
@@ -61,7 +61,7 @@ class BNO080_I2C(BNO080):
         # struct.unpack_from(fmt, data, offset=0)
         self._dbg("")
         self._dbg("READing packet")
-        self._dbg_print_header()
+        self._print_header()
 
         packet_byte_count, channel_number, sequence_number = self._get_header()
 
@@ -80,7 +80,7 @@ class BNO080_I2C(BNO080):
         )
         # TODO: exception handling
         data_remaining = self._read(packet_byte_count)
-        self._dbg_print_header()
+        self._print_header()
 
         _data_len, channel, seq = self._get_header()
         self._sequence_number[channel] = seq

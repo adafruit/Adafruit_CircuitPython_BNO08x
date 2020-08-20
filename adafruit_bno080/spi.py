@@ -15,12 +15,11 @@ import adafruit_bus_device.spi_device as spi_device
 # import board
 # from busio import SPI
 # from digitalio import DigitalInOut, Pull, Direction
-from . import BNO080, DATA_BUFFER_SIZE, const
+from . import BNO080, DATA_BUFFER_SIZE, const, Packet, PacketHeader, BNO_CHANNEL_EXE
 
 # should be removeable; I _think_ something else should be able to prep the buffers?
 
 _BNO080_DEFAULT_ADDRESS = const(0x4A)
-
 
 class BNO080_SPI(BNO080):
     """Instantiate a `adafruit_bno080.BNO080_SPI` instance to communicate with
@@ -40,67 +39,40 @@ class BNO080_SPI(BNO080):
     # """
 
     def __init__(self, spi_bus, cs_pin_obj, baudrate=100000, debug=False):
-        self.spi_device = spi_device.SPIDevice(spi_bus, cs_pin_obj, baudrate=baudrate)
+        self.bus_device_obj = spi_device.SPIDevice(spi_bus, cs_pin_obj, baudrate=baudrate)
         super().__init__(debug)
 
     def reset(self):
-        print("REEEESET")
-        message_received = True
-        while message_received:
-            message_received = self._read_packet()
-        while message_received:
-            message_received = self._read_packet()
+        sleep(1)
+        self._dbg("Sending Reset Packet")
+        self._send_packet(BNO_CHANNEL_EXE, bytearray([0x1]))
+        self._dbg("Sleeping")
+        sleep(1.050)
+        self._dbg("**** waiting for advertising packet **")
+        # read and disregard first initial advertising packet
+        advertising_packet = self._wait_for_packet()
+        # read and disregard init completed packet
+        self._dbg("**** received packet; waiting for init complete packet **")
+        init_complete_packet = self._wait_for_packet()
 
     def _read_packet(self):
-        # TODO: FIZXME
 
-        sleep(0.001)
-        with self.spi_device as spi:
-            spi.readinto(self._data_buffer, end=4)  # this is expecting a header?
-        # struct.unpack_from(fmt, data, offset=0)
-        self._dbg("")
-        self._dbg("READing packet")
-        self._dbg_print_header()
+        header = Packet.header_from_buffer(self._data_buffer)
 
-        packet_byte_count, channel_number, sequence_number = self._get_header()
-        _data_len, channel, seq = self._get_header()
-        if channel == 0xFF and seq == 0xFF:
-            print("error, maybe?")
-            return False
-        self._sequence_number[channel_number] = sequence_number
+        if header.data_length == 0:
+            raise RuntimeError("Zero bytes ready")
 
-        if packet_byte_count == 0:
-            return False
+        read_length = header.data_length
+        data_remaining = self._read(read_length)
 
-        # remove header size from read length
-        packet_byte_count -= 4
-        self._dbg(
-            "channel",
-            channel_number,
-            "has",
-            packet_byte_count,
-            "bytes available to read",
-        )
-        # TODO: exception handling
-        data_remaining = self._read(packet_byte_count)
-        self._dbg("Done reading! Data read:")
-        for idx, packet_byte in enumerate(self._data_buffer[:packet_byte_count]):
-            if (idx % 4) == 0:
-                print("\n[%3d] " % idx, end="")
-            print("0x{:02X} ".format(packet_byte), end="")
-        print("")
+        # the read has filled the data buffer with as much as possible, so we can now
+        # render a header from that data to see what was received
+        response_header = Packet.header_from_buffer(self._data_buffer)
 
-        self._dbg_print_header()
+        self._dbg("Done reading! Data requested:", read_length, "Data read:", response_header.data_length)
 
-        _data_len, channel, seq = self._get_header()
-        if channel == 0xFF and seq == 0xFF:
-            print("error, maybe?")
-            return False
-        self._sequence_number[channel] = seq
-
-        if data_remaining:
-            self._dbg("Unread data still for channel", channel_number)
-
+        # update the cached sequence number so we know what to increment from
+        self._sequence_number[header.channel_number] = header.sequence_number
         return True
 
     # returns true if all requested data was read
@@ -112,17 +84,10 @@ class BNO080_SPI(BNO080):
         if total_read_length > DATA_BUFFER_SIZE:
             unread_bytes = total_read_length - DATA_BUFFER_SIZE
             total_read_length = DATA_BUFFER_SIZE
-        self._dbg(
-            "reading",
-            total_read_length,
-            "bytes(%d+4)" % requested_read_length,
-            "leaving",
-            unread_bytes,
-            "unread bytes",
-        )
-        with self.spi_device as spi:
-            spi.readinto(self._data_buffer, end=total_read_length)
 
+        with self.bus_device_obj as spi:
+            spi.readinto(self._data_buffer, end=total_read_length)
+        self._print_buffer()
         return unread_bytes > 0
 
     def _send_packet(self, channel, data):
@@ -140,70 +105,10 @@ class BNO080_SPI(BNO080):
         for idx, send_byte in enumerate(data):
             self._data_buffer[4 + idx] = send_byte
 
-        self._dbg_print_header()
+        header = Packet.header_from_buffer(self._data_buffer)
 
-        with self.spi_device as spi:
-            self._dbg("\twriting header and data at once")
+        with self.bus_device_obj as spi:
             spi.write(self._data_buffer, end=write_length)
-
+        self._dbg("Sent:")
+        self._print_buffer()
         self._sequence_number[channel] = (self._sequence_number[channel] + 1) % 256
-
-    # def __init__(self, wake_pin, reset_pin,
-    # int_pin,
-    # sck_pin=board.SCK,
-    # miso_pin=board.MISO,
-    # mosi_pin=board.MOSI,
-    # cs_pin=board.D5,
-    # debug=False):
-    #     """Instantiate a `adafruit_bno080.BNO080_SPI`
-    # instance to communicate with the sensor using SPI
-
-    #     Args:
-    #         wake_pin ([type]): [description]
-    #         reset_pin ([type]): [description]
-    #         int_pin ([type]): [description]
-    #         sck_pin ([type], optional): [description]. Defaults to board.SCK.
-    #         miso_pin ([type], optional): [description]. Defaults to board.MISO.
-    #         mosi_pin ([type], optional): [description]. Defaults to board.MOSI.
-    #         cs_pin ([type], optional): [description]. Defaults to board.D5.
-    #         debug (bool, optional): [description]. Defaults to False.
-    #     """
-
-    #     wake_pin_obj = DigitialInOut(wake_pin)
-    #     wake_pin_obj.direction = direction.OUTPUT
-    #     reset_pin_obj = DigitialInOut(reset_pin)
-    #     reset_pin_obj.direction = direction.OUTPUT
-    #     int_pin_obj = DigitialInOut(int_pin)
-    #     int_pin_obj.direction = direction.INPUT
-    #     int_pin_obj.pull = Pull.UP
-
-    #     cs_pin_obj = DigitialInOut(cs_pin)
-    #     cs_pin_obj.direction = direction.OUTPUT
-
-    #     # Deselect BNO080
-    #     cs_pin_obj.value = True
-    #     # Before boot up the PS0/WAK pin must be high to enter SPI mode
-    #     wake_pin_obj.value = True
-
-    #     # reset BNO080
-    #     reset_pin_obj.value = False
-    #     # trying 10ms as a starting point
-    #     sleep(0.010)
-    #     reset_pin_obj.value = True
-    #     # we'll want a timeout here;
-    #     # alternatively block for enough time for the device to boot,
-    #     # rather than polling the INT pin
-    #     while not int_pin_obj.value:
-    #         print("Checking INT pin for boot completion")
-    #         sleep(0.010)
-
-    #     try:
-    #         spi_bus = busio.SPI(sck_pin, MOSI=mosi_pin, MISO=miso_pin)
-    #     except RuntimeError as runtime_err:
-    #         print("Error creating SPI bus for BNO080 after configuring the sensor for SPI")
-    #         raise runtime_err
-
-    #     self.spi_device = spi_device.SPIDevice(spi_bus, address)
-    #     print("'Succsessfully' created a SPI bus device:", self.spi_device)
-
-    #     super().__init__(debug)

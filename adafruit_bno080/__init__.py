@@ -33,7 +33,7 @@ from time import sleep, monotonic
 from micropython import const
 
 # Channel 0: the SHTP command channel
-_BNO_CHANNEL_EXE = const(1)
+BNO_CHANNEL_EXE = const(1)
 _BNO_CHANNEL_CONTROL = const(2)
 _BNO_CHANNEL_INPUT_SENSOR_REPORTS = const(3)
 _BNO_CHANNEL_WAKE_INPUT_SENSOR_REPORTS = const(4)
@@ -101,7 +101,8 @@ _BNO_REPORT_ARVR_STABILIZED_ROTATION_VECTOR = const(0x28)
 _BNO_REPORT_ARVR_STABILIZED_GAME_ROTATION_VECTOR = const(0x29)
 
 _QUAT_REPORT_INTERVAL = const(50000)  # in microseconds = 50ms
-_QUAT_READ_TIMEOUT = 1.000  # timeout in seconds
+_QUAT_READ_TIMEOUT = .500  # timeout in seconds
+_PACKET_READ_TIMEOUT = 1.000  # timeout in seconds
 _BNO080_CMD_RESET = const(0x01)
 _QUAT_Q_POINT = const(14)
 _BNO_HEADER_LEN = const(4)
@@ -111,9 +112,9 @@ _Q_POINT_12_SCALAR = 2 ** (12 * -1)
 
 
 DATA_BUFFER_SIZE = const(512)  # data buffer size. obviously eats ram
-Quaternion = namedtuple("Quaternion", ["i", "j", "k", "real", "accuracy", "status"],)
+Quaternion = namedtuple("Quaternion", ["i", "j", "k", "real", ],)
 PacketHeader = namedtuple(
-    "PacketHeader", ["data_length", "channel_number", "sequence_number",],
+    "PacketHeader", ["channel_number", "sequence_number", "data_length", "packet_byte_count", ],
 )
 
 REPORT_STATUS = ["Unreliable", "Accuracy low", "Accuracy medium", "Accuracy high"]
@@ -123,18 +124,11 @@ def _elapsed(start_time):
     return monotonic() - start_time
 
 
-def _get_header(packet_bytes):
-    packet_byte_count = unpack_from("<H", packet_bytes)[0]
-    packet_byte_count &= ~0x8000
-    channel_number = unpack_from("<B", packet_bytes, offset=2)[0]
-    sequence_number = unpack_from("<B", packet_bytes, offset=3)[0]
-    header = PacketHeader(packet_byte_count - 4, channel_number, sequence_number)
-    return header
+
 
 
 def _parse_quat(packet):
-    status_int = unpack_from("<B", packet.data, offset=7)[0]
-    status_int &= 0x03
+
 
     i_raw = unpack_from("<h", packet.data, offset=9)[0]
     quat_i = i_raw * _Q_POINT_14_SCALAR
@@ -147,9 +141,13 @@ def _parse_quat(packet):
 
     real_raw = unpack_from("<h", packet.data, offset=15)[0]
     quat_real = real_raw * _Q_POINT_14_SCALAR
+
     acc_est = unpack_from("<h", packet.data, offset=17)[0] * _Q_POINT_12_SCALAR
 
-    return (quat_i, quat_j, quat_k, quat_real, acc_est, status_int)
+    status_int = unpack_from("<B", packet.data, offset=7)[0]
+    status_int &= 0x03
+
+    return Quaternion(quat_i, quat_j, quat_k, quat_real)
 
 
 class Packet:
@@ -157,7 +155,7 @@ class Packet:
 Protocol** packet"""
 
     def __init__(self, packet_bytes):
-        self.header = _get_header(packet_bytes)
+        self.header = self.header_from_buffer(packet_bytes)
         data_end_index = self.header.data_length + _BNO_HEADER_LEN
         self.data = packet_bytes[_BNO_HEADER_LEN:data_end_index]
 
@@ -173,6 +171,18 @@ Protocol** packet"""
             outstr += "\t[%0.2d] %x\n" % (_idx, _byte)
         return outstr
 
+    @classmethod
+    def header_from_buffer(cls, packet_bytes):
+        """Creates a `PacketHeader` object from a given buffer"""
+        packet_byte_count = unpack_from("<H", packet_bytes)[0]
+        packet_byte_count &= ~0x8000
+        channel_number = unpack_from("<B", packet_bytes, offset=2)[0]
+        sequence_number = unpack_from("<B", packet_bytes, offset=3)[0]
+        data_length = max(0, packet_byte_count-4)
+
+        header = PacketHeader(channel_number, sequence_number, data_length, packet_byte_count)
+        return header
+
 
 class BNO080:
     """Library for the BNO080 IMU from Hillcrest Laboratories
@@ -183,6 +193,7 @@ class BNO080:
 
     def __init__(self, debug=False):
         self._debug = debug
+        self._dbg("********** __init__ *************")
         self._data_buffer = bytearray(DATA_BUFFER_SIZE)
         self._sequence_number = [0, 0, 0, 0, 0, 0]
         self.reset()
@@ -193,7 +204,7 @@ class BNO080:
         """Reset the sensor to an initial unconfigured state"""
         data = bytearray(1)
         data[0] = 1
-        self._send_packet(_BNO_CHANNEL_EXE, data)
+        self._send_packet(BNO_CHANNEL_EXE, data)
         self._dbg("PACKET SENT")
         sleep(0.050)
 
@@ -213,42 +224,34 @@ class BNO080:
     @property
     def quaternion(self):
         """A quaternion representing the current rotation vector"""
-        # create and send a packet to enable the quaternion data
-
-        quat_i = 0.0
-        quat_j = 0.0
-        quat_k = 0.0
-        quat_real = 0.00
-        acc_est = 0.0
-        status_int = None
-        quat = None
         # receive packets, and dump until you get a quat packet
+        while True: # add timeout
+            new_packet = self._wait_for_packet()
+            print("Got packet for channel", new_packet.header.channel_number)
+            if new_packet.header.channel_number != _BNO_CHANNEL_INPUT_SENSOR_REPORTS:
+
+                sleep(0.010)
+                continue
+
+            print("New packet Report ID", new_packet.data[5])
+            if new_packet.data[5] != _BNO_REPORT_ROTATION_VECTOR:
+                sleep(0.001)
+                continue
+
+            return _parse_quat(new_packet)
+
+    def _wait_for_packet(self, timeout=_PACKET_READ_TIMEOUT):
         start_time = monotonic()
-        while _elapsed(start_time) < _QUAT_READ_TIMEOUT:
-            data_was_read = (  # pylint:disable=assignment-from-no-return
-                self._read_packet()
-            )
-            if not data_was_read:
-                break
+        while _elapsed(start_time) < timeout:
+            if not self._data_ready():
+                print(".", end="")
+                sleep(0.01)
+                continue
+            self._dbg("packet ready; reading")
+            self._read_packet()
             new_packet = Packet(self._data_buffer)
-            if new_packet.header.channel_number == _BNO_CHANNEL_INPUT_SENSOR_REPORTS:
-                if new_packet.data[5] == _BNO_REPORT_ROTATION_VECTOR:
-                    (
-                        quat_i,
-                        quat_j,
-                        quat_k,
-                        quat_real,
-                        acc_est,
-                        status_int,
-                    ) = _parse_quat(new_packet)
-                    return Quaternion(
-                        quat_i, quat_j, quat_k, quat_real, acc_est, status_int
-                    )
-
-        if quat:
-            return quat
-
-        return Quaternion(quat_i, quat_j, quat_k, quat_real, acc_est, status_int)
+            return new_packet
+        raise TimeoutError("Timed out waiting for a packet")
 
     # Constructs a report  to set a feature
     # later: class-ify
@@ -265,14 +268,15 @@ class BNO080:
         sleep(0.2)
 
     def _check_id(self):
+        self._dbg("Checking ID")
         data = bytearray(2)
         data[0] = _SHTP_REPORT_PRODUCT_ID_REQUEST
         data[1] = 0  # padding
         self._send_packet(_BNO_CHANNEL_CONTROL, data)
-        if self._read_packet():
-            sensor_id = self._get_sensor_id()
-            if sensor_id:
-                return True
+        new_packet = self._wait_for_packet()
+        sensor_id = self._get_sensor_id()
+        if sensor_id:
+            return True
 
         return False
 
@@ -296,30 +300,22 @@ class BNO080:
         self._dbg("")
         return sw_part_number
 
-    def _get_header(self):
+    # def _get_header(self):
+    #     """Returns the header contents of the data buffer"""
 
-        packet_byte_count = unpack_from("<H", self._data_buffer)[0]
-        packet_byte_count &= ~0x8000
-        channel_number = unpack_from("<B", self._data_buffer, offset=2)[0]
-        sequence_number = unpack_from("<B", self._data_buffer, offset=3)[0]
-        return (packet_byte_count, channel_number, sequence_number)
+    #     packet_byte_count = unpack_from("<H", self._data_buffer)[0]
+    #     packet_byte_count &= ~0x8000
+    #     channel_number = unpack_from("<B", self._data_buffer, offset=2)[0]
+    #     sequence_number = unpack_from("<B", self._data_buffer, offset=3)[0]
+    #     return (packet_byte_count, channel_number, sequence_number)
 
     def _dbg(self, *args, **kwargs):
         if self._debug:
-            print("DBG::\t\t", *args, **kwargs)
+            print("\t\tDBG::\t\t", *args, **kwargs)
 
-    def _dbg_print_header(self):
-        packet_byte_count, channel_number, sequence_number = self._get_header()
-
-        self._dbg("HEADER:")
-        raw_len_bytes = self._data_buffer[1] << 8 | self._data_buffer[0]
-        is_continue = self._data_buffer[1] & 0x80 > 0
-        if is_continue:
-            self._dbg("\tCONTINUE")
-        self._dbg("\tLen: %d (%s) " % (packet_byte_count, hex(raw_len_bytes)))
-        self._dbg("\tChannel:", channel_number)
-        self._dbg("\tSequence number:", sequence_number)
-        self._dbg()
+    def _print_header(self):
+        packet_header = Packet.header_from_buffer()
+        print(packet_header)
 
     def _get_data(self, index, fmt_string):
         # index arg is not including header, so add 4 into data buffer
@@ -331,6 +327,47 @@ class BNO080:
 
     def _send_packet(self, channel, data):  # pylint:disable=no-self-use
         raise RuntimeError("Not implemented")
+
+
+    def _read_header(self):
+        """Reads the first 4 bytes available as a header"""
+        with self.bus_device_obj as bus_dev:
+            bus_dev.readinto(self._data_buffer, end=4)
+        packet_header = Packet.header_from_buffer(self._data_buffer)
+        self._dbg(packet_header)
+        return packet_header
+
+    def _data_ready(self):
+        header = self._read_header()
+        if header.channel_number > 5:
+            self._dbg("channel number out of range:", header.channel_number)
+        #  data_length, packet_byte_count)
+        if header.packet_byte_count == 0x7FFF:
+            print("Byte count is 0x7FFF/0xFFFF; Error?")
+            if header.sequence_number == 0xFF:
+                print("Sequence number is 0xFF; Error?")
+            ready = False
+        else:
+            ready = (header.data_length > 0)
+
+        self._dbg("\tdata ready", ready)
+        return ready
+
+
+
+    def _print_buffer(self, write_full=False):
+        header = Packet.header_from_buffer(self._data_buffer)
+        length = header.packet_byte_count 
+        print("_packet byte count (data):", length)
+        if write_full:
+            print(" writing full buffer")
+            length = len(self._data_buffer)
+
+        for idx, packet_byte in enumerate(self._data_buffer[:length]):
+            if (idx % 4) == 0:
+                print("\n[%3d] " % idx, end="")
+            print("0x{:02X} ".format(packet_byte), end="")
+        print("")
 
     # Useful features to possibly include:
     # re-map orientation "FRS record (0x2D3E)"
