@@ -101,7 +101,7 @@ _BNO_REPORT_ARVR_STABILIZED_ROTATION_VECTOR = const(0x28)
 _BNO_REPORT_ARVR_STABILIZED_GAME_ROTATION_VECTOR = const(0x29)
 
 _QUAT_REPORT_INTERVAL = const(50000)  # in microseconds = 50ms
-_QUAT_READ_TIMEOUT = .500  # timeout in seconds
+_QUAT_READ_TIMEOUT = 0.500  # timeout in seconds
 _PACKET_READ_TIMEOUT = 1.000  # timeout in seconds
 _BNO080_CMD_RESET = const(0x01)
 _QUAT_Q_POINT = const(14)
@@ -112,9 +112,10 @@ _Q_POINT_12_SCALAR = 2 ** (12 * -1)
 
 
 DATA_BUFFER_SIZE = const(512)  # data buffer size. obviously eats ram
-Quaternion = namedtuple("Quaternion", ["i", "j", "k", "real", ],)
+Quaternion = namedtuple("Quaternion", ["i", "j", "k", "real",],)
 PacketHeader = namedtuple(
-    "PacketHeader", ["channel_number", "sequence_number", "data_length", "packet_byte_count", ],
+    "PacketHeader",
+    ["channel_number", "sequence_number", "data_length", "packet_byte_count",],
 )
 
 REPORT_STATUS = ["Unreliable", "Accuracy low", "Accuracy medium", "Accuracy high"]
@@ -124,11 +125,7 @@ def _elapsed(start_time):
     return monotonic() - start_time
 
 
-
-
-
 def _parse_quat(packet):
-
 
     i_raw = unpack_from("<h", packet.data, offset=9)[0]
     quat_i = i_raw * _Q_POINT_14_SCALAR
@@ -142,10 +139,10 @@ def _parse_quat(packet):
     real_raw = unpack_from("<h", packet.data, offset=15)[0]
     quat_real = real_raw * _Q_POINT_14_SCALAR
 
-    acc_est = unpack_from("<h", packet.data, offset=17)[0] * _Q_POINT_12_SCALAR
+    _acc_est = unpack_from("<h", packet.data, offset=17)[0] * _Q_POINT_12_SCALAR
 
-    status_int = unpack_from("<B", packet.data, offset=7)[0]
-    status_int &= 0x03
+    _status_int = unpack_from("<B", packet.data, offset=7)[0]
+    _status_int &= 0x03
 
     return Quaternion(quat_i, quat_j, quat_k, quat_real)
 
@@ -178,9 +175,11 @@ Protocol** packet"""
         packet_byte_count &= ~0x8000
         channel_number = unpack_from("<B", packet_bytes, offset=2)[0]
         sequence_number = unpack_from("<B", packet_bytes, offset=3)[0]
-        data_length = max(0, packet_byte_count-4)
+        data_length = max(0, packet_byte_count - 4)
 
-        header = PacketHeader(channel_number, sequence_number, data_length, packet_byte_count)
+        header = PacketHeader(
+            channel_number, sequence_number, data_length, packet_byte_count
+        )
         return header
 
 
@@ -225,7 +224,7 @@ class BNO080:
     def quaternion(self):
         """A quaternion representing the current rotation vector"""
         # receive packets, and dump until you get a quat packet
-        while True: # add timeout
+        while True:  # add timeout
             new_packet = self._wait_for_packet()
             print("Got packet for channel", new_packet.header.channel_number)
             if new_packet.header.channel_number != _BNO_CHANNEL_INPUT_SENSOR_REPORTS:
@@ -251,7 +250,7 @@ class BNO080:
             self._read_packet()
             new_packet = Packet(self._data_buffer)
             return new_packet
-        raise TimeoutError("Timed out waiting for a packet")
+        raise RuntimeError("Timed out waiting for a packet")
 
     # Constructs a report  to set a feature
     # later: class-ify
@@ -273,7 +272,7 @@ class BNO080:
         data[0] = _SHTP_REPORT_PRODUCT_ID_REQUEST
         data[1] = 0  # padding
         self._send_packet(_BNO_CHANNEL_CONTROL, data)
-        new_packet = self._wait_for_packet()
+        self._wait_for_packet()
         sensor_id = self._get_sensor_id()
         if sensor_id:
             return True
@@ -300,22 +299,9 @@ class BNO080:
         self._dbg("")
         return sw_part_number
 
-    # def _get_header(self):
-    #     """Returns the header contents of the data buffer"""
-
-    #     packet_byte_count = unpack_from("<H", self._data_buffer)[0]
-    #     packet_byte_count &= ~0x8000
-    #     channel_number = unpack_from("<B", self._data_buffer, offset=2)[0]
-    #     sequence_number = unpack_from("<B", self._data_buffer, offset=3)[0]
-    #     return (packet_byte_count, channel_number, sequence_number)
-
     def _dbg(self, *args, **kwargs):
         if self._debug:
             print("\t\tDBG::\t\t", *args, **kwargs)
-
-    def _print_header(self):
-        packet_header = Packet.header_from_buffer()
-        print(packet_header)
 
     def _get_data(self, index, fmt_string):
         # index arg is not including header, so add 4 into data buffer
@@ -328,10 +314,9 @@ class BNO080:
     def _send_packet(self, channel, data):  # pylint:disable=no-self-use
         raise RuntimeError("Not implemented")
 
-
     def _read_header(self):
         """Reads the first 4 bytes available as a header"""
-        with self.bus_device_obj as bus_dev:
+        with self.bus_device_obj as bus_dev:  # pylint:disable=no-member
             bus_dev.readinto(self._data_buffer, end=4)
         packet_header = Packet.header_from_buffer(self._data_buffer)
         self._dbg(packet_header)
@@ -348,16 +333,14 @@ class BNO080:
                 print("Sequence number is 0xFF; Error?")
             ready = False
         else:
-            ready = (header.data_length > 0)
+            ready = header.data_length > 0
 
         self._dbg("\tdata ready", ready)
         return ready
 
-
-
     def _print_buffer(self, write_full=False):
         header = Packet.header_from_buffer(self._data_buffer)
-        length = header.packet_byte_count 
+        length = header.packet_byte_count
         print("_packet byte count (data):", length)
         if write_full:
             print(" writing full buffer")
@@ -368,14 +351,3 @@ class BNO080:
                 print("\n[%3d] " % idx, end="")
             print("0x{:02X} ".format(packet_byte), end="")
         print("")
-
-    # Useful features to possibly include:
-    # re-map orientation "FRS record (0x2D3E)"
-    # data timestamp
-    # DFU Support
-    # Angular velocity
-    # • Angular position (quaternion)
-    # • Data returned at configurable sample rates
-    # • Timestamps attached to sensor reports
-    # • Low latency, 1kHz gyro rotation vector for AR/VR
-    # Built-in stability detector, tap detector, and step counter

@@ -6,9 +6,10 @@ import board
 import busio
 from digitalio import DigitalInOut, Direction
 from adafruit_bno080.spi import BNO080_SPI
-from adafruit_bno080 import REPORT_STATUS
 
+# need to limit clock to 3Mhz
 spi = busio.SPI(board.SCK, MISO=board.MISO, MOSI=board.MOSI)
+
 cs = DigitalInOut(board.D5)
 cs.direction = Direction.OUTPUT
 
@@ -19,8 +20,7 @@ while True:
     quat = bno.quaternion  # pylint:disable=no-member
     print("Rotation Vector Quaternion:")
     print(
-        "I: %0.6f  J: %0.6f K: %0.6f  Real: %0.6f"
-        % (quat.i, quat.j, quat.k, quat.real)
+        "I: %0.6f  J: %0.6f K: %0.6f  Real: %0.6f" % (quat.i, quat.j, quat.k, quat.real)
     )
     print("")
     sleep(0.5)
