@@ -9,7 +9,7 @@
 from time import sleep
 from struct import pack_into
 import adafruit_bus_device.i2c_device as i2c_device
-from . import BNO080, DATA_BUFFER_SIZE, const, Packet
+from . import BNO080, BNO_CHANNEL_EXE, DATA_BUFFER_SIZE, const, Packet
 
 # should be removeable; I _think_ something else should be able to prep the buffers?
 
@@ -26,6 +26,27 @@ class BNO080_I2C(BNO080):
     def __init__(self, i2c_bus, address=_BNO080_DEFAULT_ADDRESS, debug=False):
         self.bus_device_obj = i2c_device.I2CDevice(i2c_bus, address)
         super().__init__(debug)
+
+    def reset(self):
+        """Reset the sensor to an initial unconfigured state"""
+        data = bytearray(1)
+        data[0] = 1
+        self._send_packet(BNO_CHANNEL_EXE, data)
+        self._dbg("PACKET SENT")
+        sleep(0.050)
+
+        sleep(1)
+        data_read = True
+        while data_read:
+            data_read = self._read_packet()  # pylint:disable=assignment-from-no-return
+            self._dbg("data read:", data_read)
+
+        sleep(0.050)
+        data_read = True
+        while data_read:
+            data_read = self._read_packet()  # pylint:disable=assignment-from-no-return
+
+            self._dbg("data read:", data_read)
 
     def _send_packet(self, channel, data):
         data_length = len(data)
@@ -119,3 +140,19 @@ class BNO080_I2C(BNO080):
             i2c.readinto(self._data_buffer, end=total_read_length)
 
         return unread_bytes > 0
+
+    def _data_ready(self):
+        header = self._read_header()
+        if header.channel_number > 5:
+            self._dbg("channel number out of range:", header.channel_number)
+        #  data_length, packet_byte_count)
+        if header.packet_byte_count == 0x7FFF:
+            print("Byte count is 0x7FFF/0xFFFF; Error?")
+            if header.sequence_number == 0xFF:
+                print("Sequence number is 0xFF; Error?")
+            ready = False
+        else:
+            ready = header.data_length > 0
+
+        self._dbg("\tdata ready", ready)
+        return ready

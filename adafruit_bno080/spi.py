@@ -9,9 +9,11 @@
 from time import sleep
 from struct import pack_into
 
+import board
+from digitalio import DigitalInOut, Direction
 import adafruit_bus_device.spi_device as spi_device
 
-from . import BNO080, DATA_BUFFER_SIZE, const, Packet, BNO_CHANNEL_EXE
+from . import BNO080, DATA_BUFFER_SIZE, const, Packet
 
 # should be removeable; I _think_ something else should be able to prep the buffers?
 
@@ -35,20 +37,36 @@ class BNO080_SPI(BNO080):
 
     # """
 
-    def __init__(self, spi_bus, cs_pin_obj, baudrate=100000, debug=False):
+    def __init__(
+        self, spi_bus, cs_pin_obj, int_pin_obj, baudrate=100000, debug=False
+    ):  # pylint:disable=too-many-arguments
         self.bus_device_obj = spi_device.SPIDevice(
             spi_bus, cs_pin_obj, baudrate=baudrate, polarity=1, phase=1
         )
+        self._int_pin = int_pin_obj
+
+        self._int_check_pin = DigitalInOut(board.D9)
+        self._int_check_pin.direction = Direction.OUTPUT
+        self._int_check_pin.value = False
+
+        self._read_pin = DigitalInOut(board.D10)
+        self._read_pin.direction = Direction.OUTPUT
+        self._read_pin.value = False
+
+        self._write_pin = DigitalInOut(board.D11)
+        self._write_pin.direction = Direction.OUTPUT
+        self._write_pin.value = False
+
         super().__init__(debug)
 
     def reset(self):
-        sleep(1)
-        self._dbg("Sending Reset Packet")
-        self._send_packet(BNO_CHANNEL_EXE, bytearray([0x1, 0x0]))
         self._dbg("Sleeping")
-        sleep(1.050)
+        sleep(2.050)
+
         self._dbg("**** waiting for advertising packet **")
         # read and disregard first initial advertising packet
+        # The BNO08X uses advertisements to publish the channel maps and the names
+        # of the built-in applications.
         _advertising_packet = self._wait_for_packet()
         # read and disregard init completed packet
         self._dbg("**** received packet; waiting for init complete packet **")
@@ -56,10 +74,13 @@ class BNO080_SPI(BNO080):
 
     # I think this and `_send_packet` should take a `Packet`
     def _read_packet(self):
+        self._read_pin.value = True
 
         header = Packet.header_from_buffer(self._data_buffer)
 
         if header.data_length == 0:
+            self._read_pin.value = False
+
             raise RuntimeError("Zero bytes ready")
 
         read_length = header.data_length
@@ -77,7 +98,10 @@ class BNO080_SPI(BNO080):
         )
 
         # update the cached sequence number so we know what to increment from
+        # TODO: this is wrong; there should be one per channel per direction
         self._sequence_number[header.channel_number] = header.sequence_number
+        self._read_pin.value = False
+
         return True
 
     ###### Actually send bytes ##########
@@ -100,6 +124,7 @@ class BNO080_SPI(BNO080):
         return unread_bytes > 0
 
     def _send_packet(self, channel, data):
+        self._write_pin.value = True
         self._dbg("Sending packet to channel", channel)
         data_length = len(data)
         write_length = data_length + 4
@@ -108,6 +133,7 @@ class BNO080_SPI(BNO080):
         pack_into("<H", self._data_buffer, 0, write_length)
         self._data_buffer[2] = channel
 
+        # TODO: this is probably wrong; there should be one per channel per direction
         self._data_buffer[3] = self._sequence_number[channel]
 
         # this is dumb but it's what we have for now
@@ -120,4 +146,30 @@ class BNO080_SPI(BNO080):
             spi.write(self._data_buffer, end=write_length)
         self._dbg("Sent:")
         self._print_buffer()
+        # TODO: this is wrong; there should be one per channel per direction
         self._sequence_number[channel] = (self._sequence_number[channel] + 1) % 256
+
+        self._write_pin.value = False
+
+    def _data_ready(self):
+        self._int_check_pin.value = True
+        int_value = self._int_pin.value
+
+        self._int_check_pin.value = False
+        self._int_check_pin.value = True
+
+        if int_value:
+            self._int_check_pin.value = False
+            return False
+        header = self._read_header()
+        if Packet.is_error(header):
+            print("ERROR packet")
+            self._int_check_pin.value = False
+            return False
+        if header.data_length == 0:
+            print("EMPTY packet")
+            self._int_check_pin.value = False
+            return False
+
+        self._int_check_pin.value = False
+        return True

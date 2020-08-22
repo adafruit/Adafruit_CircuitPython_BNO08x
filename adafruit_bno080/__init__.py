@@ -102,7 +102,7 @@ _BNO_REPORT_ARVR_STABILIZED_GAME_ROTATION_VECTOR = const(0x29)
 
 _QUAT_REPORT_INTERVAL = const(50000)  # in microseconds = 50ms
 _QUAT_READ_TIMEOUT = 0.500  # timeout in seconds
-_PACKET_READ_TIMEOUT = 1.000  # timeout in seconds
+_PACKET_READ_TIMEOUT = 7.000  # timeout in seconds
 _BNO080_CMD_RESET = const(0x01)
 _QUAT_Q_POINT = const(14)
 _BNO_HEADER_LEN = const(4)
@@ -182,6 +182,16 @@ Protocol** packet"""
         )
         return header
 
+    @classmethod
+    def is_error(cls, header):
+        """Returns True if the header is an error condition"""
+
+        if header.channel_number > 5:
+            return True
+        if header.packet_byte_count == 0xFFFF and header.sequence_number == 0xFF:
+            return True
+        return False
+
 
 class BNO080:
     """Library for the BNO080 IMU from Hillcrest Laboratories
@@ -194,31 +204,14 @@ class BNO080:
         self._debug = debug
         self._dbg("********** __init__ *************")
         self._data_buffer = bytearray(DATA_BUFFER_SIZE)
+        # TODO: this is wrong; there should be one per channel per direction
+
         self._sequence_number = [0, 0, 0, 0, 0, 0]
+        # self._sequence_number = {"in": [0, 0, 0, 0, 0, 0], "out": [0, 0, 0, 0, 0, 0]}
+        # se;f
         self.reset()
         self._check_id()
         self._enable_quaternion()
-
-    def reset(self):
-        """Reset the sensor to an initial unconfigured state"""
-        data = bytearray(1)
-        data[0] = 1
-        self._send_packet(BNO_CHANNEL_EXE, data)
-        self._dbg("PACKET SENT")
-        sleep(0.050)
-
-        sleep(1)
-        data_read = True
-        while data_read:
-            data_read = self._read_packet()  # pylint:disable=assignment-from-no-return
-            self._dbg("data read:", data_read)
-
-        sleep(0.050)
-        data_read = True
-        while data_read:
-            data_read = self._read_packet()  # pylint:disable=assignment-from-no-return
-
-            self._dbg("data read:", data_read)
 
     @property
     def quaternion(self):
@@ -243,10 +236,9 @@ class BNO080:
         start_time = monotonic()
         while _elapsed(start_time) < timeout:
             if not self._data_ready():
-                print(".", end="")
-                sleep(0.01)
                 continue
-            self._dbg("packet ready; reading")
+
+            self._dbg("\npacket ready; reading")
             self._read_packet()
             new_packet = Packet(self._data_buffer)
             return new_packet
@@ -308,12 +300,6 @@ class BNO080:
         data_index = index + 4
         return unpack_from(fmt_string, self._data_buffer, offset=data_index)[0]
 
-    def _read_packet(self):  # pylint:disable=no-self-use
-        raise RuntimeError("Not implemented")
-
-    def _send_packet(self, channel, data):  # pylint:disable=no-self-use
-        raise RuntimeError("Not implemented")
-
     def _read_header(self):
         """Reads the first 4 bytes available as a header"""
         with self.bus_device_obj as bus_dev:  # pylint:disable=no-member
@@ -322,32 +308,32 @@ class BNO080:
         self._dbg(packet_header)
         return packet_header
 
-    def _data_ready(self):
-        header = self._read_header()
-        if header.channel_number > 5:
-            self._dbg("channel number out of range:", header.channel_number)
-        #  data_length, packet_byte_count)
-        if header.packet_byte_count == 0x7FFF:
-            print("Byte count is 0x7FFF/0xFFFF; Error?")
-            if header.sequence_number == 0xFF:
-                print("Sequence number is 0xFF; Error?")
-            ready = False
-        else:
-            ready = header.data_length > 0
-
-        self._dbg("\tdata ready", ready)
-        return ready
-
     def _print_buffer(self, write_full=False):
         header = Packet.header_from_buffer(self._data_buffer)
         length = header.packet_byte_count
-        print("_packet byte count (data):", length)
         if write_full:
-            print(" writing full buffer")
+            print(" writing complete buffer")
             length = len(self._data_buffer)
 
         for idx, packet_byte in enumerate(self._data_buffer[:length]):
             if (idx % 4) == 0:
-                print("\n[%3d] " % idx, end="")
+                print("\n\t\tDBG::[%3d] " % idx, end="")
             print("0x{:02X} ".format(packet_byte), end="")
         print("")
+
+    # pylint:disable=no-self-use
+    def _data_ready(self):
+        raise RuntimeError("Not implemented")
+
+    def reset(self):
+        """Reset the sensor to an initial unconfigured state"""
+        raise RuntimeError("Not implemented")
+
+    def _send_packet(self, channel, data):
+        raise RuntimeError("Not implemented")
+
+    def _read_packet(self):
+        raise RuntimeError("Not implemented")
+
+    def _send_packet(self, channel, data):
+        raise RuntimeError("Not implemented")
