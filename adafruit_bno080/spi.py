@@ -67,10 +67,13 @@ class BNO080_SPI(BNO080):
         # read and disregard first initial advertising packet
         # The BNO08X uses advertisements to publish the channel maps and the names
         # of the built-in applications.
-        _advertising_packet = self._wait_for_packet()
+        # _advertising_packet = self._wait_for_packet()
+        self._wait_for_packet_type(0)
+
         # read and disregard init completed packet
         self._dbg("**** received packet; waiting for init complete packet **")
-        _init_complete_packet = self._wait_for_packet()
+        self._wait_for_packet_type(2, 0xF1)
+        print("INIT COMPLETE?!")
 
     # I think this and `_send_packet` should take a `Packet`
     def _read_packet(self):
@@ -155,21 +158,21 @@ class BNO080_SPI(BNO080):
         self._int_check_pin.value = True
         int_value = self._int_pin.value
 
-        self._int_check_pin.value = False
-        self._int_check_pin.value = True
-
         if int_value:
             self._int_check_pin.value = False
             return False
         header = self._read_header()
         if Packet.is_error(header):
             print("ERROR packet")
+            self._dbg("****** DONE ****")
             self._int_check_pin.value = False
             return False
         if header.data_length == 0:
             print("EMPTY packet")
+            self._dbg("****** DONE ****")
             self._int_check_pin.value = False
             return False
 
+        self._dbg("****** DONE ****")
         self._int_check_pin.value = False
         return True

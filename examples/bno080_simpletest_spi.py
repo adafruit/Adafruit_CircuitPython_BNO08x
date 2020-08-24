@@ -18,8 +18,9 @@ int_pin = DigitalInOut(board.D6)
 int_pin.direction = Direction.INPUT
 
 bno = BNO080_SPI(spi, cs, int_pin, debug=True)
-print("We made it out!")
+print("\n****** INIT COMPLETE *******")
 while True:
+    print("getting quat")
     quat = bno.quaternion  # pylint:disable=no-member
     print("Rotation Vector Quaternion:")
     print(

@@ -33,6 +33,7 @@ from time import sleep, monotonic
 from micropython import const
 
 # Channel 0: the SHTP command channel
+_BNO_CHANNEL_SHTP_COMMAND = const(0)
 BNO_CHANNEL_EXE = const(1)
 _BNO_CHANNEL_CONTROL = const(2)
 _BNO_CHANNEL_INPUT_SENSOR_REPORTS = const(3)
@@ -100,9 +101,18 @@ _BNO_REPORT_HEART_RATE_MONITOR = const(0x23)
 _BNO_REPORT_ARVR_STABILIZED_ROTATION_VECTOR = const(0x28)
 _BNO_REPORT_ARVR_STABILIZED_GAME_ROTATION_VECTOR = const(0x29)
 
+
+# Reset reasons from ID Report reponse:
+# 0 – Not Applicable
+# 1 – Power On Reset
+# 2 – Internal System Reset
+# 3 – Watchdog Timeout
+# 4 – External Reset
+# 5 – Other
+
 _QUAT_REPORT_INTERVAL = const(50000)  # in microseconds = 50ms
 _QUAT_READ_TIMEOUT = 0.500  # timeout in seconds
-_PACKET_READ_TIMEOUT = 7.000  # timeout in seconds
+_PACKET_READ_TIMEOUT = 15.000  # timeout in seconds
 _BNO080_CMD_RESET = const(0x01)
 _QUAT_Q_POINT = const(14)
 _BNO_HEADER_LEN = const(4)
@@ -148,8 +158,7 @@ def _parse_quat(packet):
 
 
 class Packet:
-    """A class representing a Hillcrest Laboratory **Sensor Hub Transport
-Protocol** packet"""
+    """A class representing a Hillcrest LaboratorySensor Hub Transport packet"""
 
     def __init__(self, packet_bytes):
         self.header = self.header_from_buffer(packet_bytes)
@@ -167,6 +176,16 @@ Protocol** packet"""
         for _idx, _byte in enumerate(self.data):
             outstr += "\t[%0.2d] %x\n" % (_idx, _byte)
         return outstr
+
+    @property
+    def report_id(self):
+        """The Packet's Report ID"""
+        return self.data[0]
+
+    @property
+    def channel_number(self):
+        """The packet channel"""
+        return self.header.channel_number
 
     @classmethod
     def header_from_buffer(cls, packet_bytes):
@@ -209,8 +228,16 @@ class BNO080:
         self._sequence_number = [0, 0, 0, 0, 0, 0]
         # self._sequence_number = {"in": [0, 0, 0, 0, 0, 0], "out": [0, 0, 0, 0, 0, 0]}
         # se;f
+        self._wait_for_initialize = True
+        self._init_complete = False
+        self._id_read = False
+        self.initialize()
+
+    def initialize(self):
+        """Initialize the sensor"""
         self.reset()
-        self._check_id()
+        if not self._check_id():
+            raise RuntimeError("Could not read ID")
         self._enable_quaternion()
 
     @property
@@ -218,19 +245,105 @@ class BNO080:
         """A quaternion representing the current rotation vector"""
         # receive packets, and dump until you get a quat packet
         while True:  # add timeout
-            new_packet = self._wait_for_packet()
+            new_packet = self._wait_for_packet_type(_BNO_CHANNEL_INPUT_SENSOR_REPORTS)
             print("Got packet for channel", new_packet.header.channel_number)
-            if new_packet.header.channel_number != _BNO_CHANNEL_INPUT_SENSOR_REPORTS:
+            # if new_packet.channel_number != _BNO_CHANNEL_INPUT_SENSOR_REPORTS:
+            #     continue
 
-                sleep(0.010)
-                continue
-
-            print("New packet Report ID", new_packet.data[5])
+            # print("New packet Report ID", hex(new_packet.report_id))
+            # if new_packet.report_id != _BNO_REPORT_ROTATION_VECTOR:
+            #     sleep(0.001)
+            #     continue
+            print("New packet thing", new_packet.data[5])
             if new_packet.data[5] != _BNO_REPORT_ROTATION_VECTOR:
                 sleep(0.001)
                 continue
 
             return _parse_quat(new_packet)
+
+    def _wait_for_packet_type(self, channel_number, report_id=None, timeout=5.0):
+        print(
+            "** WAITing for packet on channel",
+            channel_number,
+            "with report id",
+            report_id,
+        )
+        start_time = monotonic()
+        while _elapsed(start_time) < timeout:
+            new_packet = self._wait_for_packet()
+            print("Got packet for channel", new_packet.header.channel_number)
+            print("New packet Report ID", hex(new_packet.report_id))
+            if new_packet.channel_number == channel_number:
+                print("\tchannel matches")
+                if report_id:
+                    if new_packet.report_id == report_id:
+                        print("\treport ID matches")
+                        return new_packet
+                    print("\treport ID *DOES NOT* match")
+                else:
+                    return new_packet
+            self._handle_packet(new_packet)
+
+        raise RuntimeError("Timed out waiting for a packet on channel", channel_number)
+
+    def _handle_packet(self, packet):
+        # advertisement; match on channel+seq, len
+        # DBG::[  0] 0x14 0x81 0x00 0x01
+        # DBG::[  4] 0x00 0x01 0x04 0x00
+
+        if packet.channel_number == _BNO_CHANNEL_SHTP_COMMAND:
+            if packet.header.data_length == 272:
+                print("Got 272 len packet on channel 0")
+                self._wait_for_initialize = True
+                self._init_complete = False
+                self._id_read = False
+
+        # ch 1 command 1 = reset
+        # DBG::[  0] 0x05 0x80 0x01 0x01
+        # DBG::[  4] 0x01
+        if packet.channel_number == BNO_CHANNEL_EXE:
+            if packet.data[0] == 1:
+                print("********** Found reset packet! ************")
+                self._init_complete = False
+                print("...sleeping")
+                sleep(1)
+                print("reinitializing")
+                self.initialize()
+
+        # 0xF1 == command response; Command is 0x84? - unsolicited initialize
+        # DBG::[  0] 0x14 0x80 0x02 0x01
+        # DBG::[  4] 0xF1 0x00 0x84 0x00
+        # DBG::[  8] 0x00 0x00 0x01 0x00
+        # DBG::[ 12] 0x00 0x00 0x00 0x00
+        # DBG::[ 16] 0x00 0x00 0x00 0x00
+        if packet.channel_number == _BNO_CHANNEL_CONTROL:
+            if packet.report_id == _BNO_CMD_COMMAND_RESPONSE:
+                print("Got command response")
+                if packet.data[2] == 0x84:
+                    print("Got unsolicited init response")
+                    if self._wait_for_initialize:
+                        self._wait_for_initialize = False
+                        self._init_complete = True
+
+                    else:
+                        raise RuntimeError(
+                            "Unsolicted init received before Advertisement"
+                        )
+
+        # Ch 2 ID Response
+        # DBG::[  0] 0x14 0x80 0x02 0x03
+        # DBG::[  4] 0xF8 0x03 0x03 0x02
+        # DBG::[  8] 0x98 0xA4 0x98 0x00
+        # DBG::[ 12] 0x72 0x01 0x00 0x00
+        # DBG::[ 16] 0x07 0x00 0x00 0x00
+
+        # Ch 3, ReportID: 0xFB timestamp
+        # DBG::[  0] 0x17 0x80 0x03 0x01
+        # DBG::[  4] 0xFB 0x17 0x00 0x00
+        # DBG::[  8] 0x00 0x05 0x00 0x00
+        # DBG::[ 12] 0x00 0x3D 0xFD 0xF4
+        # DBG::[ 16] 0xFD 0xAB 0x07 0x72
+        # DBG::[ 20] 0x3F 0x44 0x32
 
     def _wait_for_packet(self, timeout=_PACKET_READ_TIMEOUT):
         start_time = monotonic()
@@ -248,7 +361,7 @@ class BNO080:
     # later: class-ify
     # def _set_feature_report(self, feature_id):
     def _enable_quaternion(self):
-
+        print("\n********** ENABLE QUATERNIONS **********")
         set_feature_report = bytearray(17)
         set_feature_report[0] = _BNO_CMD_SET_FEATURE_COMMAND
         set_feature_report[1] = _BNO_REPORT_ROTATION_VECTOR
@@ -257,21 +370,43 @@ class BNO080:
         self._send_packet(_BNO_CHANNEL_CONTROL, set_feature_report)
         # There is a substantial delay until data is available
         sleep(0.2)
+        while True:
+            packet = self._wait_for_packet_type(
+                _BNO_CHANNEL_CONTROL, _BNO_CMD_GET_FEATURE_RESPONSE
+            )
+            if packet.channel_number == _BNO_CHANNEL_CONTROL:
+                print("got channel 2")
+                report_id = packet.report_id
+                print("Report ID:", report_id)
+                if report_id == _BNO_CMD_GET_FEATURE_RESPONSE:
+                    print("Done!")
+                    return True
 
     def _check_id(self):
-        self._dbg("Checking ID")
+
+        print("\n********** READ ID **********")
+        if self._id_read:
+            return True
         data = bytearray(2)
         data[0] = _SHTP_REPORT_PRODUCT_ID_REQUEST
         data[1] = 0  # padding
+        self._dbg("\n** Sending ID Request Report **")
         self._send_packet(_BNO_CHANNEL_CONTROL, data)
-        self._wait_for_packet()
-        sensor_id = self._get_sensor_id()
-        if sensor_id:
-            return True
+        self._dbg("\n** Waiting for packet **")
+        # _a_ packet arrived, but which one?
+        while True:
+            self._wait_for_packet_type(
+                _BNO_CHANNEL_CONTROL, _SHTP_REPORT_PRODUCT_ID_RESPONSE
+            )
+            sensor_id = self._parse_sensor_id()
+            if sensor_id:
+                self._id_read = True
+                return True
+            print("Packet didn't have sensor ID report, trying again")
 
         return False
 
-    def _get_sensor_id(self):
+    def _parse_sensor_id(self):
         if not self._data_buffer[4] == _SHTP_REPORT_PRODUCT_ID_RESPONSE:
             return None
         # 0 Report ID = 0xF8
