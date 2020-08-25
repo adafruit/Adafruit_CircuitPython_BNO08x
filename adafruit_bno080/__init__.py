@@ -123,6 +123,8 @@ _Q_POINT_9_SCALAR = 2 ** (9 * -1)
 _Q_POINT_8_SCALAR = 2 ** (8 * -1)
 
 _GYRO_SCALAR = _Q_POINT_9_SCALAR
+_ACCEL_SCALAR = _Q_POINT_8_SCALAR
+_QUAT_SCALAR = _Q_POINT_14_SCALAR
 # ROTATIONVECTOR_Q1 = 14
 # ROTATIONVECTORACCURACY_Q1 = 12; //HEADING ACCURACY ESTIMATE IN RADIANS. THE Q POINT IS 12
 # ACCELEROMETER_Q1 = 8
@@ -146,35 +148,6 @@ def _elapsed(start_time):
     return monotonic() - start_time
 
 
-def _parse_quat(packet):
-
-    i_raw = unpack_from("<h", packet.data, offset=9)[0]
-    quat_i = i_raw * _Q_POINT_14_SCALAR
-
-    j_raw = unpack_from("<h", packet.data, offset=11)[0]
-    quat_j = j_raw * _Q_POINT_14_SCALAR
-
-    k_raw = unpack_from("<h", packet.data, offset=13)[0]
-    quat_k = k_raw * _Q_POINT_14_SCALAR
-
-    real_raw = unpack_from("<h", packet.data, offset=15)[0]
-    quat_real = real_raw * _Q_POINT_14_SCALAR
-
-    return Quaternion(quat_i, quat_j, quat_k, quat_real)
-
-
-def _parse_acceleration(packet):
-    x_raw = unpack_from("<h", packet.data, offset=9)[0]
-    accel_x = x_raw * _Q_POINT_8_SCALAR
-
-    y_raw = unpack_from("<h", packet.data, offset=11)[0]
-    accel_y = y_raw * _Q_POINT_8_SCALAR
-
-    z_raw = unpack_from("<h", packet.data, offset=13)[0]
-    accel_z = z_raw * _Q_POINT_8_SCALAR
-    return (accel_x, accel_y, accel_z)
-
-
 def _parse_report_data(packet, scalar, count=3):
     results = []
     base_offset = 9
@@ -196,15 +169,27 @@ class Packet:
         self.data = packet_bytes[_BNO_HEADER_LEN:data_end_index]
 
     def __str__(self):
-        outstr = ""
-        outstr += "HEADER:"
 
-        outstr += "\tLen: %d\n" % (self.header.data_length)
-        outstr += "\tChannel: %s\n" % self.header.channel_number
-        outstr += "\tSequence number: %s\n" % self.header.sequence_number
-        outstr += "\nData:"
-        for _idx, _byte in enumerate(self.data):
-            outstr += "\t[%0.2d] %x\n" % (_idx, _byte)
+        length = self.header.packet_byte_count
+        outstr = "\n\t\t********** Packet *************\n"
+        outstr += "\t\tDBG:: HEADER:\n"
+
+        outstr += "\t\tDBG:: Len: %d\n" % (self.header.data_length)
+        outstr += "\t\tDBG:: Channel: %s\n" % self.header.channel_number
+        outstr += "\t\tDBG:: Sequence number: %s\n" % self.header.sequence_number
+        outstr += "\n"
+        outstr += "\t\tDBG:: Data:"
+
+        for idx, packet_byte in enumerate(self.data[:length]):
+            packet_index = idx + 4
+            if (packet_index % 4) == 0:
+                outstr += "\n\t\tDBG::[0x{:02X}] ".format(packet_index)
+            outstr += "0x{:02X} ".format(packet_byte)
+        outstr += "\n"
+        outstr += "\t\t*******************************\n"
+
+        # for _idx, _byte in enumerate(self.data):
+        #     outstr += "\t[%0.2d] %x\n" % (_idx, _byte)
         return outstr
 
     @property
@@ -268,10 +253,10 @@ class BNO080:
         self.reset()
         if not self._check_id():
             raise RuntimeError("Could not read ID")
-        self._enable_quaternion()
-        self._enable_linear_acceleration()
-        self._enable_accelerometer()
-        self._enable_feature(_BNO_REPORT_GYROSCOPE)
+        self._enable_feature(_BNO_REPORT_GYROSCOPE)  # gyro
+        self._enable_feature(_BNO_REPORT_ACCELEROMETER)  # accelerometer
+        self._enable_feature(_BNO_REPORT_LINEAR_ACCELERATION)  # linear acceleration
+        self._enable_feature(_BNO_REPORT_ROTATION_VECTOR)  # quaternion
 
     @property
     def quaternion(self):
@@ -280,12 +265,13 @@ class BNO080:
         while True:  # add timeout
             new_packet = self._wait_for_packet_type(_BNO_CHANNEL_INPUT_SENSOR_REPORTS)
             self._dbg("Got sensor report:")
-            self._print_buffer()
+            if self._debug:
+                print(new_packet)
             if new_packet.data[5] != _BNO_REPORT_ROTATION_VECTOR:
                 self._dbg("WRONG REPORT TYPEEEEE")
                 continue
 
-            return _parse_quat(new_packet)
+            return _parse_report_data(new_packet, _QUAT_SCALAR, 4)
 
     @property
     def linear_acceleration(self):
@@ -294,18 +280,18 @@ class BNO080:
         # receive packets, and dump until you get a quat packet
         while True:  # add timeout
             new_packet = self._wait_for_packet_type(_BNO_CHANNEL_INPUT_SENSOR_REPORTS)
-            self._dbg("Got sensor report:")
-            self._print_buffer()
+            if self._debug:
+                print(new_packet)
             if new_packet.data[5] != _BNO_REPORT_LINEAR_ACCELERATION:
                 continue
 
-            return _parse_acceleration(new_packet)
+            return _parse_report_data(new_packet, _ACCEL_SCALAR)
 
     @property
     def acceleration(self):
         """A tuple representing the acceleration measurements on the X, Y, and Z
         axes in meters per second squared"""
-        # receive packets, and dump until you get a quat packet
+        # receive packets, and dump until you get an accelerometer packet
         while True:  # add timeout
             new_packet = self._wait_for_packet_type(_BNO_CHANNEL_INPUT_SENSOR_REPORTS)
             self._dbg("Got sensor report:")
@@ -313,7 +299,7 @@ class BNO080:
             if new_packet.data[5] != _BNO_REPORT_ACCELEROMETER:
                 continue
 
-            return _parse_acceleration(new_packet)
+            return _parse_report_data(new_packet, _ACCEL_SCALAR)
 
     @property
     def gyro(self):
@@ -423,36 +409,23 @@ class BNO080:
             self._dbg("packet ready; reading")
             self._read_packet()
             new_packet = Packet(self._data_buffer)
+            if self._debug:
+                print(new_packet)
             return new_packet
         raise RuntimeError("Timed out waiting for a packet")
 
     @staticmethod
-    def _set_feature_report(feature_id):
+    def _get_feature_enable_report(feature_id):
         set_feature_report = bytearray(17)
         set_feature_report[0] = _BNO_CMD_SET_FEATURE_COMMAND
         set_feature_report[1] = feature_id
         pack_into("<I", set_feature_report, 5, _DEFAULT_REPORT_INTERVAL)
         return set_feature_report
 
-    def _enable_quaternion(self):
-        set_feature_report = self._set_feature_report(_BNO_REPORT_ROTATION_VECTOR)
-
-        self._send_packet(_BNO_CHANNEL_CONTROL, set_feature_report)
-        # There is a substantial delay until data is available
-        sleep(0.2)
-        while True:
-            packet = self._wait_for_packet_type(
-                _BNO_CHANNEL_CONTROL, _BNO_CMD_GET_FEATURE_RESPONSE
-            )
-            if (
-                packet.data[1] == _BNO_REPORT_ROTATION_VECTOR
-            ):  # check the ID of the enabled thing
-                self._dbg("Done!")
-                return True
-        return False
-
     def _enable_feature(self, feature_id):
-        set_feature_report = self._set_feature_report(feature_id)
+        self._dbg("Enabling feature id:", feature_id)
+
+        set_feature_report = self._get_feature_enable_report(feature_id)
         self._send_packet(_BNO_CHANNEL_CONTROL, set_feature_report)
         while True:
             packet = self._wait_for_packet_type(
@@ -461,39 +434,6 @@ class BNO080:
             self._print_buffer()
 
             if packet.data[1] == feature_id:
-                self._dbg("Done!")
-                return True
-
-        return False
-
-    def _enable_linear_acceleration(self):
-
-        set_feature_report = self._set_feature_report(_BNO_REPORT_LINEAR_ACCELERATION)
-        self._send_packet(_BNO_CHANNEL_CONTROL, set_feature_report)
-        while True:
-            packet = self._wait_for_packet_type(
-                _BNO_CHANNEL_CONTROL, _BNO_CMD_GET_FEATURE_RESPONSE
-            )
-            self._print_buffer()
-
-            if packet.data[1] == _BNO_REPORT_LINEAR_ACCELERATION:
-                self._dbg("Done!")
-                return True
-
-        return False
-
-    def _enable_accelerometer(self):
-
-        set_feature_report = self._set_feature_report(_BNO_REPORT_ACCELEROMETER)
-        self._send_packet(_BNO_CHANNEL_CONTROL, set_feature_report)
-        while True:
-            packet = self._wait_for_packet_type(
-                _BNO_CHANNEL_CONTROL, _BNO_CMD_GET_FEATURE_RESPONSE
-            )
-            self._dbg("Got Feature response:")
-            self._print_buffer()
-
-            if packet.data[1] == _BNO_REPORT_ACCELEROMETER:
                 self._dbg("Done!")
                 return True
 

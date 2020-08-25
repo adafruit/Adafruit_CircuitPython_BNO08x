@@ -35,8 +35,5 @@ while True:
         now_msecs = time.monotonic_ns() // 1000000  # pylint: disable=no-member
 
         if now_msecs - quat_last_read >= quat_svc.measurement_period:
-            quat_obj = bno.quaternion
-            bno_080_quat_out = (quat_obj.i, quat_obj.j, quat_obj.i, quat_obj.real)
-
-            quat_svc.quaternion = bno_080_quat_out
+            quat_svc.quaternion = bno.quaternion
             quat_last_read = now_msecs
