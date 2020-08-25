@@ -29,7 +29,7 @@ __repo__ = "https:# github.com/adafruit/Adafruit_CircuitPython_BNO080.git"
 
 from struct import unpack_from, pack_into
 from collections import namedtuple
-from time import sleep, monotonic
+from time import sleep, monotonic, monotonic_ns
 from micropython import const
 
 # Channel 0: the SHTP command channel
@@ -118,20 +118,18 @@ _QUAT_Q_POINT = const(14)
 _BNO_HEADER_LEN = const(4)
 
 _Q_POINT_14_SCALAR = 2 ** (14 * -1)
-_Q_POINT_12_SCALAR = 2 ** (12 * -1)
+# _Q_POINT_12_SCALAR = 2 ** (12 * -1)
+# _Q_POINT_10_SCALAR = 2 ** (10 * -1)
 _Q_POINT_9_SCALAR = 2 ** (9 * -1)
 _Q_POINT_8_SCALAR = 2 ** (8 * -1)
+_Q_POINT_4_SCALAR = 2 ** (4 * -1)
 
 _GYRO_SCALAR = _Q_POINT_9_SCALAR
 _ACCEL_SCALAR = _Q_POINT_8_SCALAR
 _QUAT_SCALAR = _Q_POINT_14_SCALAR
-# ROTATIONVECTOR_Q1 = 14
-# ROTATIONVECTORACCURACY_Q1 = 12; //HEADING ACCURACY ESTIMATE IN RADIANS. THE Q POINT IS 12
-# ACCELEROMETER_Q1 = 8
-# LINEAR_ACCELEROMETER_Q1 = 8
-# GYRO_Q1 = 9
-# MAGNETOMETER_Q1 = 4
-# ANGULAR_VELOCITY_Q1 = 10
+_MAG_SCALAR = _Q_POINT_4_SCALAR
+# _QUAT_RADIAN_ACCURACY_SCALAR = _Q_POINT_12_SCALAR
+# _ANGULAR_VELOCITY_SCALAR = _Q_POINT_10_SCALAR
 
 
 DATA_BUFFER_SIZE = const(512)  # data buffer size. obviously eats ram
@@ -146,6 +144,20 @@ REPORT_STATUS = ["Unreliable", "Accuracy low", "Accuracy medium", "Accuracy high
 
 def _elapsed(start_time):
     return monotonic() - start_time
+
+
+def elapsed_time(func):
+    """Print the runtime of the decorated function"""
+
+    def wrapper_timer(*args, **kwargs):
+        start_time = monotonic_ns()  # 1
+        value = func(*args, **kwargs)
+        end_time = monotonic_ns()  # 2
+        run_time = end_time - start_time  # 3
+        print("Finished", func.__name__, "in", (run_time / 1000000.0), "ms")
+        return value
+
+    return wrapper_timer
 
 
 def _parse_report_data(packet, scalar, count=3):
@@ -257,6 +269,21 @@ class BNO080:
         self._enable_feature(_BNO_REPORT_ACCELEROMETER)  # accelerometer
         self._enable_feature(_BNO_REPORT_LINEAR_ACCELERATION)  # linear acceleration
         self._enable_feature(_BNO_REPORT_ROTATION_VECTOR)  # quaternion
+        self._enable_feature(_BNO_REPORT_MAGNETIC_FIELD)  # magnetometer
+
+    @property
+    def magnetic(self):
+        """A tuple of the current magnetic field measurements on the X, Y, and Z axes"""
+        # receive packets, and dump until you get a quat packet
+        while True:  # add timeout
+            new_packet = self._wait_for_packet_type(_BNO_CHANNEL_INPUT_SENSOR_REPORTS)
+            self._dbg("Got sensor report:")
+            if self._debug:
+                print(new_packet)
+            if new_packet.data[5] != _BNO_REPORT_MAGNETIC_FIELD:
+                continue
+
+            return _parse_report_data(new_packet, _MAG_SCALAR)
 
     @property
     def quaternion(self):
@@ -500,6 +527,7 @@ class BNO080:
         self._dbg(packet_header)
         return packet_header
 
+    @elapsed_time
     def _print_buffer(self, write_full=False):
         header = Packet.header_from_buffer(self._data_buffer)
         length = header.packet_byte_count
