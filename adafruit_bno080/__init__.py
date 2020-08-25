@@ -110,7 +110,7 @@ _BNO_REPORT_ARVR_STABILIZED_GAME_ROTATION_VECTOR = const(0x29)
 # 4 – External Reset
 # 5 – Other
 
-_QUAT_REPORT_INTERVAL = const(50000)  # in microseconds = 50ms
+_DEFAULT_REPORT_INTERVAL = const(50000)  # in microseconds = 50ms
 _QUAT_READ_TIMEOUT = 0.500  # timeout in seconds
 _PACKET_READ_TIMEOUT = 15.000  # timeout in seconds
 _BNO080_CMD_RESET = const(0x01)
@@ -119,6 +119,15 @@ _BNO_HEADER_LEN = const(4)
 
 _Q_POINT_14_SCALAR = 2 ** (14 * -1)
 _Q_POINT_12_SCALAR = 2 ** (12 * -1)
+_Q_POINT_9_SCALAR = 2 ** (9 * -1)
+_Q_POINT_8_SCALAR = 2 ** (8 * -1)
+# ROTATIONVECTOR_Q1 = 14
+# ROTATIONVECTORACCURACY_Q1 = 12; //HEADING ACCURACY ESTIMATE IN RADIANS. THE Q POINT IS 12
+# ACCELEROMETER_Q1 = 8
+# LINEAR_ACCELEROMETER_Q1 = 8
+# GYRO_Q1 = 9
+# MAGNETOMETER_Q1 = 4
+# ANGULAR_VELOCITY_Q1 = 10
 
 
 DATA_BUFFER_SIZE = const(512)  # data buffer size. obviously eats ram
@@ -149,12 +158,19 @@ def _parse_quat(packet):
     real_raw = unpack_from("<h", packet.data, offset=15)[0]
     quat_real = real_raw * _Q_POINT_14_SCALAR
 
-    _acc_est = unpack_from("<h", packet.data, offset=17)[0] * _Q_POINT_12_SCALAR
-
-    _status_int = unpack_from("<B", packet.data, offset=7)[0]
-    _status_int &= 0x03
-
     return Quaternion(quat_i, quat_j, quat_k, quat_real)
+
+
+def _parse_acceleration(packet):
+    x_raw = unpack_from("<h", packet.data, offset=9)[0]
+    accel_x = x_raw * _Q_POINT_8_SCALAR
+
+    y_raw = unpack_from("<h", packet.data, offset=11)[0]
+    accel_y = y_raw * _Q_POINT_8_SCALAR
+
+    z_raw = unpack_from("<h", packet.data, offset=13)[0]
+    accel_z = z_raw * _Q_POINT_8_SCALAR
+    return (accel_x, accel_y, accel_z)
 
 
 class Packet:
@@ -239,6 +255,8 @@ class BNO080:
         if not self._check_id():
             raise RuntimeError("Could not read ID")
         self._enable_quaternion()
+        self._enable_linear_acceleration()
+        self._enable_accelerometer()
 
     @property
     def quaternion(self):
@@ -246,40 +264,60 @@ class BNO080:
         # receive packets, and dump until you get a quat packet
         while True:  # add timeout
             new_packet = self._wait_for_packet_type(_BNO_CHANNEL_INPUT_SENSOR_REPORTS)
-            print("Got packet for channel", new_packet.header.channel_number)
-            # if new_packet.channel_number != _BNO_CHANNEL_INPUT_SENSOR_REPORTS:
-            #     continue
-
-            # print("New packet Report ID", hex(new_packet.report_id))
-            # if new_packet.report_id != _BNO_REPORT_ROTATION_VECTOR:
-            #     sleep(0.001)
-            #     continue
-            print("New packet thing", new_packet.data[5])
+            self._dbg("Got sensor report:")
+            self._print_buffer()
             if new_packet.data[5] != _BNO_REPORT_ROTATION_VECTOR:
-                sleep(0.001)
+                self._dbg("WRONG REPORT TYPEEEEE")
                 continue
 
             return _parse_quat(new_packet)
 
+    @property
+    def linear_acceleration(self):
+        """A tuple representing the current linear acceleration values on the X, Y, and Z
+        axes in meters per second squared"""
+        # receive packets, and dump until you get a quat packet
+        while True:  # add timeout
+            new_packet = self._wait_for_packet_type(_BNO_CHANNEL_INPUT_SENSOR_REPORTS)
+            self._dbg("Got sensor report:")
+            self._print_buffer()
+            if new_packet.data[5] != _BNO_REPORT_LINEAR_ACCELERATION:
+                continue
+
+            return _parse_acceleration(new_packet)
+
+    @property
+    def acceleration(self):
+        """A tuple representing the acceleration measurements on the X, Y, and Z
+        axes in meters per second squared"""
+        # receive packets, and dump until you get a quat packet
+        while True:  # add timeout
+            new_packet = self._wait_for_packet_type(_BNO_CHANNEL_INPUT_SENSOR_REPORTS)
+            self._dbg("Got sensor report:")
+            self._print_buffer()
+            if new_packet.data[5] != _BNO_REPORT_ACCELEROMETER:
+                continue
+
+            return _parse_acceleration(new_packet)
+
     def _wait_for_packet_type(self, channel_number, report_id=None, timeout=5.0):
-        print(
-            "** WAITing for packet on channel",
-            channel_number,
-            "with report id",
-            report_id,
-        )
+        if report_id:
+            report_id_str = " with report id %s" % hex(report_id)
+        else:
+            report_id_str = ""
+        self._dbg("** WAITing for packet on channel", channel_number, report_id_str)
         start_time = monotonic()
         while _elapsed(start_time) < timeout:
             new_packet = self._wait_for_packet()
-            print("Got packet for channel", new_packet.header.channel_number)
-            print("New packet Report ID", hex(new_packet.report_id))
+            self._dbg("\tGot packet for channel", new_packet.header.channel_number)
+            self._dbg("\tNew packet Report ID", hex(new_packet.report_id))
             if new_packet.channel_number == channel_number:
-                print("\tchannel matches")
+                self._dbg("\t\tchannel matches")
                 if report_id:
                     if new_packet.report_id == report_id:
-                        print("\treport ID matches")
+                        self._dbg("\t\treport ID matches")
                         return new_packet
-                    print("\treport ID *DOES NOT* match")
+                    self._dbg("\t\treport ID *DOES NOT* match")
                 else:
                     return new_packet
             self._handle_packet(new_packet)
@@ -287,13 +325,14 @@ class BNO080:
         raise RuntimeError("Timed out waiting for a packet on channel", channel_number)
 
     def _handle_packet(self, packet):
+        self._dbg("** HANDLING NON-REQUESTED PACKET **")
         # advertisement; match on channel+seq, len
         # DBG::[  0] 0x14 0x81 0x00 0x01
         # DBG::[  4] 0x00 0x01 0x04 0x00
 
         if packet.channel_number == _BNO_CHANNEL_SHTP_COMMAND:
             if packet.header.data_length == 272:
-                print("Got 272 len packet on channel 0")
+                self._dbg("Got 272 len packet on channel 0")
                 self._wait_for_initialize = True
                 self._init_complete = False
                 self._id_read = False
@@ -303,11 +342,11 @@ class BNO080:
         # DBG::[  4] 0x01
         if packet.channel_number == BNO_CHANNEL_EXE:
             if packet.data[0] == 1:
-                print("********** Found reset packet! ************")
+                self._dbg("********** Found reset packet! ************")
                 self._init_complete = False
-                print("...sleeping")
+                self._dbg("...sleeping")
                 sleep(1)
-                print("reinitializing")
+                self._dbg("reinitializing")
                 self.initialize()
 
         # 0xF1 == command response; Command is 0x84? - unsolicited initialize
@@ -318,9 +357,9 @@ class BNO080:
         # DBG::[ 16] 0x00 0x00 0x00 0x00
         if packet.channel_number == _BNO_CHANNEL_CONTROL:
             if packet.report_id == _BNO_CMD_COMMAND_RESPONSE:
-                print("Got command response")
+                self._dbg("Got command response")
                 if packet.data[2] == 0x84:
-                    print("Got unsolicited init response")
+                    self._dbg("Got unsolicited init response")
                     if self._wait_for_initialize:
                         self._wait_for_initialize = False
                         self._init_complete = True
@@ -351,21 +390,23 @@ class BNO080:
             if not self._data_ready():
                 continue
 
-            self._dbg("\npacket ready; reading")
+            self._dbg("")
+            self._dbg("packet ready; reading")
             self._read_packet()
             new_packet = Packet(self._data_buffer)
             return new_packet
         raise RuntimeError("Timed out waiting for a packet")
 
-    # Constructs a report  to set a feature
-    # later: class-ify
-    # def _set_feature_report(self, feature_id):
-    def _enable_quaternion(self):
-        print("\n********** ENABLE QUATERNIONS **********")
+    @staticmethod
+    def _set_feature_report(feature_id):
         set_feature_report = bytearray(17)
         set_feature_report[0] = _BNO_CMD_SET_FEATURE_COMMAND
-        set_feature_report[1] = _BNO_REPORT_ROTATION_VECTOR
-        pack_into("<I", set_feature_report, 5, _QUAT_REPORT_INTERVAL)
+        set_feature_report[1] = feature_id
+        pack_into("<I", set_feature_report, 5, _DEFAULT_REPORT_INTERVAL)
+        return set_feature_report
+
+    def _enable_quaternion(self):
+        set_feature_report = self._set_feature_report(_BNO_REPORT_ROTATION_VECTOR)
 
         self._send_packet(_BNO_CHANNEL_CONTROL, set_feature_report)
         # There is a substantial delay until data is available
@@ -374,17 +415,49 @@ class BNO080:
             packet = self._wait_for_packet_type(
                 _BNO_CHANNEL_CONTROL, _BNO_CMD_GET_FEATURE_RESPONSE
             )
-            if packet.channel_number == _BNO_CHANNEL_CONTROL:
-                print("got channel 2")
-                report_id = packet.report_id
-                print("Report ID:", report_id)
-                if report_id == _BNO_CMD_GET_FEATURE_RESPONSE:
-                    print("Done!")
-                    return True
+            if (
+                packet.data[1] == _BNO_REPORT_ROTATION_VECTOR
+            ):  # check the ID of the enabled thing
+                self._dbg("Done!")
+                return True
+        return False
+
+    def _enable_linear_acceleration(self):
+
+        set_feature_report = self._set_feature_report(_BNO_REPORT_LINEAR_ACCELERATION)
+        self._send_packet(_BNO_CHANNEL_CONTROL, set_feature_report)
+        while True:
+            packet = self._wait_for_packet_type(
+                _BNO_CHANNEL_CONTROL, _BNO_CMD_GET_FEATURE_RESPONSE
+            )
+            self._print_buffer()
+
+            if packet.data[1] == _BNO_REPORT_LINEAR_ACCELERATION:
+                self._dbg("Done!")
+                return True
+
+        return False
+
+    def _enable_accelerometer(self):
+
+        set_feature_report = self._set_feature_report(_BNO_REPORT_ACCELEROMETER)
+        self._send_packet(_BNO_CHANNEL_CONTROL, set_feature_report)
+        while True:
+            packet = self._wait_for_packet_type(
+                _BNO_CHANNEL_CONTROL, _BNO_CMD_GET_FEATURE_RESPONSE
+            )
+            self._dbg("Got Feature response:")
+            self._print_buffer()
+
+            if packet.data[1] == _BNO_REPORT_ACCELEROMETER:
+                self._dbg("Done!")
+                return True
+
+        return False
 
     def _check_id(self):
 
-        print("\n********** READ ID **********")
+        self._dbg("\n********** READ ID **********")
         if self._id_read:
             return True
         data = bytearray(2)
@@ -402,7 +475,7 @@ class BNO080:
             if sensor_id:
                 self._id_read = True
                 return True
-            print("Packet didn't have sensor ID report, trying again")
+            self._dbg("Packet didn't have sensor ID report, trying again")
 
         return False
 
@@ -428,7 +501,7 @@ class BNO080:
 
     def _dbg(self, *args, **kwargs):
         if self._debug:
-            print("\t\tDBG::\t\t", *args, **kwargs)
+            print("DBG::\t\t\t\t", *args, **kwargs)
 
     def _get_data(self, index, fmt_string):
         # index arg is not including header, so add 4 into data buffer
@@ -446,6 +519,8 @@ class BNO080:
     def _print_buffer(self, write_full=False):
         header = Packet.header_from_buffer(self._data_buffer)
         length = header.packet_byte_count
+        if not self._debug:
+            return
         if write_full:
             print(" writing complete buffer")
             length = len(self._data_buffer)
