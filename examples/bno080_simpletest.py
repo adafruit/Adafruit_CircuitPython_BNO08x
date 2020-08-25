@@ -17,10 +17,14 @@ while True:
     print(
         "I: %0.6f  J: %0.6f K: %0.6f  Real: %0.6f" % (quat.i, quat.j, quat.k, quat.real)
     )
-    print("")
     print("Acceleration (accelerometer):")
     accel_x, accel_y, accel_z = bno.acceleration  # pylint:disable=no-member
     print("X: %0.6f  Y: %0.6f Z: %0.6f " % (accel_x, accel_y, accel_z))
+
+    print("Gyro :")
+    gyro_x, gyro_y, gyro_z = bno.gyro  # pylint:disable=no-member
+    print("X: %0.6f  Y: %0.6f Z: %0.6f " % (gyro_x, gyro_y, gyro_z))
+
     print("Linear Acceleration (accelerometer):")
     (
         linear_accel_x,

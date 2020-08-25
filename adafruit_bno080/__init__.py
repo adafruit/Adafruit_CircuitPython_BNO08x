@@ -121,6 +121,8 @@ _Q_POINT_14_SCALAR = 2 ** (14 * -1)
 _Q_POINT_12_SCALAR = 2 ** (12 * -1)
 _Q_POINT_9_SCALAR = 2 ** (9 * -1)
 _Q_POINT_8_SCALAR = 2 ** (8 * -1)
+
+_GYRO_SCALAR = _Q_POINT_9_SCALAR
 # ROTATIONVECTOR_Q1 = 14
 # ROTATIONVECTORACCURACY_Q1 = 12; //HEADING ACCURACY ESTIMATE IN RADIANS. THE Q POINT IS 12
 # ACCELEROMETER_Q1 = 8
@@ -171,6 +173,18 @@ def _parse_acceleration(packet):
     z_raw = unpack_from("<h", packet.data, offset=13)[0]
     accel_z = z_raw * _Q_POINT_8_SCALAR
     return (accel_x, accel_y, accel_z)
+
+
+def _parse_report_data(packet, scalar, count=3):
+    results = []
+    base_offset = 9
+    for _offset_idx in range(count):
+        total_offset = base_offset + (_offset_idx * 2)
+        raw_data = unpack_from("<h", packet.data, offset=total_offset)[0]
+        scaled_data = raw_data * scalar
+        results.append(scaled_data)
+
+    return tuple(results)
 
 
 class Packet:
@@ -257,6 +271,7 @@ class BNO080:
         self._enable_quaternion()
         self._enable_linear_acceleration()
         self._enable_accelerometer()
+        self._enable_feature(_BNO_REPORT_GYROSCOPE)
 
     @property
     def quaternion(self):
@@ -299,6 +314,20 @@ class BNO080:
                 continue
 
             return _parse_acceleration(new_packet)
+
+    @property
+    def gyro(self):
+        """A tuple representing Gyro's rotation measurements on the X, Y, and Z
+        axes in radians per second"""
+        # receive packets, and dump until you get a quat packet
+        while True:  # add timeout
+            new_packet = self._wait_for_packet_type(_BNO_CHANNEL_INPUT_SENSOR_REPORTS)
+            self._dbg("Got sensor report:")
+            self._print_buffer()
+            if new_packet.data[5] != _BNO_REPORT_GYROSCOPE:
+                continue
+
+            return _parse_report_data(new_packet, _GYRO_SCALAR, 3)
 
     def _wait_for_packet_type(self, channel_number, report_id=None, timeout=5.0):
         if report_id:
@@ -420,6 +449,21 @@ class BNO080:
             ):  # check the ID of the enabled thing
                 self._dbg("Done!")
                 return True
+        return False
+
+    def _enable_feature(self, feature_id):
+        set_feature_report = self._set_feature_report(feature_id)
+        self._send_packet(_BNO_CHANNEL_CONTROL, set_feature_report)
+        while True:
+            packet = self._wait_for_packet_type(
+                _BNO_CHANNEL_CONTROL, _BNO_CMD_GET_FEATURE_RESPONSE
+            )
+            self._print_buffer()
+
+            if packet.data[1] == feature_id:
+                self._dbg("Done!")
+                return True
+
         return False
 
     def _enable_linear_acceleration(self):
