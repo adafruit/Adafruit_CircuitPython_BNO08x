@@ -88,25 +88,14 @@ class BNO080_SPI(BNO080):
 
         read_length = header.data_length
         self._read(read_length)
-
-        # the read has filled the data buffer with as much as possible, so we can now
-        # render a header from that data to see what was received
-        response_header = Packet.header_from_buffer(self._data_buffer)
-
-        self._dbg(
-            "Done reading! Data requested:",
-            read_length,
-            "Data read:",
-            response_header.data_length,
-        )
-
-        # update the cached sequence number so we know what to increment from
-        # TODO: this is wrong; there should be one per channel per direction
-        self._sequence_number[header.channel_number] = header.sequence_number
         self._read_pin.value = False
 
-        return True
+        # TODO: Allocaiton
+        new_packet = Packet(self._data_buffer)
+        self._update_sequence_number(new_packet)
 
+        return new_packet
+    
     ###### Actually send bytes ##########
     # Note: I _think_ these can be used for either SPI or I2C in the base class by having the
     # subclass  set the 'bus_device_object' to a `bus_device`.SPI` or `bus_device.I2C`
@@ -140,7 +129,7 @@ class BNO080_SPI(BNO080):
         self._data_buffer[3] = self._sequence_number[channel]
 
         # this is dumb but it's what we have for now
-        for idx, send_byte in enumerate(data):
+        for idx, end_byte in enumerate(data):
             self._data_buffer[4 + idx] = send_byte
 
         # header = Packet.header_from_buffer(self._data_buffer)
@@ -154,6 +143,7 @@ class BNO080_SPI(BNO080):
 
         self._write_pin.value = False
 
+    @property
     def _data_ready(self):
         self._int_check_pin.value = True
         int_value = self._int_pin.value

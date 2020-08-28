@@ -15,7 +15,6 @@ from . import BNO080, BNO_CHANNEL_EXE, DATA_BUFFER_SIZE, const, Packet
 
 _BNO080_DEFAULT_ADDRESS = const(0x4A)
 
-
 class BNO080_I2C(BNO080):
     """Library for the BNO080 IMU from Hillcrest Laboratories
 
@@ -29,30 +28,26 @@ class BNO080_I2C(BNO080):
 
     def reset(self):
         """Reset the sensor to an initial unconfigured state"""
+        # TODO: Update to use _wait_for_packet_type?
         data = bytearray(1)
         data[0] = 1
         self._send_packet(BNO_CHANNEL_EXE, data)
-        self._dbg("PACKET SENT")
         sleep(0.050)
 
         sleep(1)
         data_read = True
         while data_read:
             data_read = self._read_packet()  # pylint:disable=assignment-from-no-return
-            self._dbg("data read:", data_read)
 
         sleep(0.050)
         data_read = True
         while data_read:
             data_read = self._read_packet()  # pylint:disable=assignment-from-no-return
 
-            self._dbg("data read:", data_read)
-
     def _send_packet(self, channel, data):
         data_length = len(data)
         write_length = data_length + 4
 
-        # struct.pack_into(fmt, buffer, offset, *values)
         pack_into("<H", self._data_buffer, 0, write_length)
         self._data_buffer[2] = channel
 
@@ -62,10 +57,7 @@ class BNO080_I2C(BNO080):
         for idx, send_byte in enumerate(data):
             self._data_buffer[4 + idx] = send_byte
 
-        # self._print_header()
-
         with self.bus_device_obj as i2c:
-            self._dbg("\twriting header and data at once")
             i2c.write(self._data_buffer, end=write_length)
 
         self._sequence_number[channel] = (self._sequence_number[channel] + 1) % 256
@@ -74,26 +66,24 @@ class BNO080_I2C(BNO080):
     # the sensor will always tell us how much there is, so no need to track it ourselves
 
     def _read_packet(self):
-        # TODO: FIZXME
+        # TODO: MAGIC NUMBER?
 
-        sleep(0.001)
+        sleep(0.001) #
+        # TODO: this can be `_read_header` or know it's done by `_data_ready`
         with self.bus_device_obj as i2c:
             i2c.readinto(self._data_buffer, end=4)  # this is expecting a header?
-        # struct.unpack_from(fmt, data, offset=0)
         self._dbg("")
         self._dbg("READing packet")
-        # self._print_header()
 
-        # packet_byte_count, channel_number, sequence_number = self._get_header()
         header = Packet.header_from_buffer(self._data_buffer)
         packet_byte_count = header.packet_byte_count
         channel_number = header.channel_number
         sequence_number = header.sequence_number
-        self._sequence_number[channel_number] = sequence_number
 
+        self._sequence_number[channel_number] = sequence_number
         if packet_byte_count == 0:
-            return False
-        # remove header size from read length
+            self._dbg("SKIPPING NO PACKETS AVAILABLE IN i2c._read_packet")
+            return False        # remove header size from read length
         packet_byte_count -= 4
         self._dbg(
             "channel",
@@ -102,22 +92,15 @@ class BNO080_I2C(BNO080):
             packet_byte_count,
             "bytes available to read",
         )
-        # TODO: exception handling
-        data_remaining = self._read(packet_byte_count)
-        # self._print_header()
+        
+        self._read(packet_byte_count)
 
-        header = Packet.header_from_buffer(self._data_buffer)
-        _data_len = header.packet_byte_count
-        channel = header.channel_number
-        seq = header.sequence_number
+        # TODO: Allocaiton
+        new_packet = Packet(self._data_buffer)
 
-        # _data_len, channel, seq = self._get_header()
-        self._sequence_number[channel] = seq
+        self._update_sequence_number(new_packet)
 
-        if data_remaining:
-            self._dbg("Unread data still for channel", channel_number)
-
-        return True
+        return new_packet
 
     # returns true if all requested data was read
     def _read(self, requested_read_length):
@@ -126,21 +109,12 @@ class BNO080_I2C(BNO080):
         # +4 for the header
         total_read_length = requested_read_length + 4
         if total_read_length > DATA_BUFFER_SIZE:
-            unread_bytes = total_read_length - DATA_BUFFER_SIZE
-            total_read_length = DATA_BUFFER_SIZE
-        self._dbg(
-            "reading",
-            total_read_length,
-            "bytes(%d+4)" % requested_read_length,
-            "leaving",
-            unread_bytes,
-            "unread bytes",
-        )
+            self._data_buffer = bytearray(total_read_length)
+            self._dbg("!!!!!!!!!!!! ALLOCATION: increased _data_buffer to bytearray(%d) !!!!!!!!!!!!! "%total_read_length)
         with self.bus_device_obj as i2c:
             i2c.readinto(self._data_buffer, end=total_read_length)
 
-        return unread_bytes > 0
-
+    @property
     def _data_ready(self):
         header = self._read_header()
         if header.channel_number > 5:
@@ -154,5 +128,5 @@ class BNO080_I2C(BNO080):
         else:
             ready = header.data_length > 0
 
-        self._dbg("\tdata ready", ready)
+        # self._dbg("\tdata ready", ready)
         return ready

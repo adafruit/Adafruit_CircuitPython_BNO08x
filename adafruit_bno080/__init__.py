@@ -32,6 +32,7 @@ from collections import namedtuple
 from time import sleep, monotonic, monotonic_ns
 from micropython import const
 
+# TODO: shorten names
 # Channel 0: the SHTP command channel
 _BNO_CHANNEL_SHTP_COMMAND = const(0)
 BNO_CHANNEL_EXE = const(1)
@@ -43,16 +44,12 @@ _BNO_CHANNEL_GYRO_ROTATION_VECTOR = const(5)
 _BNO_CMD_GET_FEATURE_REQUEST = const(0xFE)
 _BNO_CMD_SET_FEATURE_COMMAND = const(0xFD)
 _BNO_CMD_GET_FEATURE_RESPONSE = const(0xFC)
-
 _BNO_CMD_BASE_TIMESTAMP = const(0xFB)
+
 _BNO_CMD_TIMESTAMP_REBASE = const(0xFA)
-########## TODO ##########
-_BNO_CMD_PRODUCT_ID_REQUEST = const(0xF9)
-_BNO_CMD_PRODUCT_ID_RESPONSE = const(0xF8)
 
 _SHTP_REPORT_PRODUCT_ID_RESPONSE = const(0xF8)
 _SHTP_REPORT_PRODUCT_ID_REQUEST = const(0xF9)
-##################
 
 _BNO_CMD_FRS_WRITE_REQUEST = const(0xF7)
 _BNO_CMD_FRS_WRITE_DATA = const(0xF6)
@@ -64,51 +61,17 @@ _BNO_CMD_FRS_READ_RESPONSE = const(0xF3)
 _BNO_CMD_COMMAND_REQUEST = const(0xF2)
 _BNO_CMD_COMMAND_RESPONSE = const(0xF1)
 
+
+# Calibrated Acceleration (m/s2)
 _BNO_REPORT_ACCELEROMETER = const(0x01)
+# Calibrated gyroscope (rad/s).
 _BNO_REPORT_GYROSCOPE = const(0x02)
+# Magnetic field calibrated (in µTesla). The fully calibrated magnetic field measurement.
 _BNO_REPORT_MAGNETIC_FIELD = const(0x03)
+# Linear acceleration (m/s2). Acceleration of the device with gravity removed
 _BNO_REPORT_LINEAR_ACCELERATION = const(0x04)
+# Rotation Vector
 _BNO_REPORT_ROTATION_VECTOR = const(0x05)
-_BNO_REPORT_GRAVITY = const(0x06)
-_BNO_REPORT_UNCALIBRATED_GYROSCOPE = const(0x07)
-_BNO_REPORT_GAME_ROTATION_VECTOR = const(0x08)
-_BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR = const(0x09)
-_BNO_REPORT_PRESSURE = const(0x0A)
-_BNO_REPORT_AMBIENT_LIGHT = const(0x0B)
-_BNO_REPORT_HUMIDITY = const(0x0C)
-_BNO_REPORT_PROXIMITY = const(0x0D)
-_BNO_REPORT_TEMPERATURE = const(0x0E)
-_BNO_REPORT_UNCALIBRATED_MAGNETIC_FIELD = const(0x0F)
-_BNO_REPORT_TAP_DETECTOR = const(0x10)
-_BNO_REPORT_STEP_COUNTER = const(0x11)
-_BNO_REPORT_SIGNIFICANT_MOTION = const(0x12)
-_BNO_REPORT_STABILITY_CLASSIFIER = const(0x13)
-_BNO_REPORT_RAW_ACCELEROMETER = const(0x14)
-_BNO_REPORT_RAW_GYROSCOPE = const(0x15)
-_BNO_REPORT_RAW_MAGNETOMETER = const(0x16)
-_BNO_REPORT_SAR = const(0x17)
-_BNO_REPORT_STEP_DETECTOR = const(0x18)
-_BNO_REPORT_SHAKE_DETECTOR = const(0x19)
-_BNO_REPORT_FLIP_DETECTOR = const(0x1A)
-_BNO_REPORT_PICKUP_DETECTOR = const(0x1B)
-_BNO_REPORT_STABILITY_DETECTOR = const(0x1C)
-_BNO_REPORT_PERSONAL_ACTIVITY_CLASSIFIER = const(0x1E)
-_BNO_REPORT_SLEEP_DETECTOR = const(0x1F)
-_BNO_REPORT_TILT_DETECTOR = const(0x20)
-_BNO_REPORT_POCKET_DETECTOR = const(0x21)
-_BNO_REPORT_CIRCLE_DETECTOR = const(0x22)
-_BNO_REPORT_HEART_RATE_MONITOR = const(0x23)
-_BNO_REPORT_ARVR_STABILIZED_ROTATION_VECTOR = const(0x28)
-_BNO_REPORT_ARVR_STABILIZED_GAME_ROTATION_VECTOR = const(0x29)
-
-
-# Reset reasons from ID Report reponse:
-# 0 – Not Applicable
-# 1 – Power On Reset
-# 2 – Internal System Reset
-# 3 – Watchdog Timeout
-# 4 – External Reset
-# 5 – Other
 
 _DEFAULT_REPORT_INTERVAL = const(50000)  # in microseconds = 50ms
 _QUAT_READ_TIMEOUT = 0.500  # timeout in seconds
@@ -131,9 +94,15 @@ _MAG_SCALAR = _Q_POINT_4_SCALAR
 # _QUAT_RADIAN_ACCURACY_SCALAR = _Q_POINT_12_SCALAR
 # _ANGULAR_VELOCITY_SCALAR = _Q_POINT_10_SCALAR
 
+_ENABLED_SENSOR_REPORTS = {
+    _BNO_REPORT_ACCELEROMETER : (_ACCEL_SCALAR, 3),
+    # _BNO_REPORT_GYROSCOPE : (_GYRO_SCALAR, 3),
+    # _BNO_REPORT_MAGNETIC_FIELD : (_MAG_SCALAR, 3),
+    # _BNO_REPORT_LINEAR_ACCELERATION : (_ACCEL_SCALAR, 3),
+    # _BNO_REPORT_ROTATION_VECTOR : (_QUAT_SCALAR, 4),
+}
 
 DATA_BUFFER_SIZE = const(512)  # data buffer size. obviously eats ram
-Quaternion = namedtuple("Quaternion", ["i", "j", "k", "real",],)
 PacketHeader = namedtuple(
     "PacketHeader",
     ["channel_number", "sequence_number", "data_length", "packet_byte_count",],
@@ -145,6 +114,19 @@ REPORT_STATUS = ["Unreliable", "Accuracy low", "Accuracy medium", "Accuracy high
 def _elapsed(start_time):
     return monotonic() - start_time
 
+
+def debug_print(func):
+    """Print the runtime of the decorated function"""
+
+    def wrapper_debug(*args, **kwargs):
+        debug_state = args[0]._debug
+        args[0]._debug = True
+        value = func(*args, **kwargs)
+        args[0]._debug = debug_state
+        print("debugged", func.__name__)
+        return value
+
+    return wrapper_debug
 
 def elapsed_time(func):
     """Print the runtime of the decorated function"""
@@ -159,14 +141,26 @@ def elapsed_time(func):
 
     return wrapper_timer
 
-
-def _parse_report_data(packet, scalar, count=3):
+def _parse_report_data(packet, debug=False):
+    # TODO: Parse and store time offset
+    # Timestamp offset
+    # 0 Report ID=0xFB
+    # 1 Base Delta LSB: relative to transport-defined reference point. Signed. Units are 100 microsecond ticks.
+    # 2 Base Delta
+    # 3 Base Delta
+    # 4 Base Delta MSB
+    report_id = packet.report_id
+    if report_id == _BNO_CMD_BASE_TIMESTAMP:
+        report_id = packet.data[5]
+    scalar, count = _ENABLED_SENSOR_REPORTS[report_id]
+    if debug: print("\t\tDBG::Scaling %d bytes of sensor data with scalar %.3f)"%(scalar, count))
     results = []
     base_offset = 9
     for _offset_idx in range(count):
         total_offset = base_offset + (_offset_idx * 2)
         raw_data = unpack_from("<h", packet.data, offset=total_offset)[0]
         scaled_data = raw_data * scalar
+        if debug: print("\t\tDBG:: [%d] raw: %d scaled: %.3f"%(_offset_idx, raw_data, scaled_data))
         results.append(scaled_data)
 
     return tuple(results)
@@ -180,14 +174,31 @@ class Packet:
         data_end_index = self.header.data_length + _BNO_HEADER_LEN
         self.data = packet_bytes[_BNO_HEADER_LEN:data_end_index]
 
+    @elapsed_time
     def __str__(self):
+        from .debug import channels, reports
 
         length = self.header.packet_byte_count
         outstr = "\n\t\t********** Packet *************\n"
         outstr += "\t\tDBG:: HEADER:\n"
 
         outstr += "\t\tDBG:: Len: %d\n" % (self.header.data_length)
-        outstr += "\t\tDBG:: Channel: %s\n" % self.header.channel_number
+        outstr += "\t\tDBG:: Channel: %s\n" % channels[self.header.channel_number]
+        if self.channel_number == _BNO_CHANNEL_INPUT_SENSOR_REPORTS:
+            if self.report_id in reports:
+                outstr += "\t\tDBG:: \tReport Type: %s\n" % reports[self.report_id]
+            else:
+                outstr += "\t\tDBG:: \t** UNKNOWN Report Type **: %s\n" % hex(
+                    self.report_id
+                )
+
+            if (
+                self.report_id > 0xF0
+                and len(self.data) >= 6
+                and self.data[5] in reports
+            ):
+                outstr += "\t\tDBG:: \tSensor Report Type: %s\n" % reports[self.data[5]]
+
         outstr += "\t\tDBG:: Sequence number: %s\n" % self.header.sequence_number
         outstr += "\n"
         outstr += "\t\tDBG:: Data:"
@@ -250,14 +261,16 @@ class BNO080:
         self._debug = debug
         self._dbg("********** __init__ *************")
         self._data_buffer = bytearray(DATA_BUFFER_SIZE)
-        # TODO: this is wrong; there should be one per channel per direction
+        # TODO: this is wrong there should be one per channel per direction
 
         self._sequence_number = [0, 0, 0, 0, 0, 0]
         # self._sequence_number = {"in": [0, 0, 0, 0, 0, 0], "out": [0, 0, 0, 0, 0, 0]}
-        # se;f
+        # sef
         self._wait_for_initialize = True
         self._init_complete = False
         self._id_read = False
+        # for saving the most recent reading when decoding several packets
+        self._readings = {}
         self.initialize()
 
     def initialize(self):
@@ -265,6 +278,7 @@ class BNO080:
         self.reset()
         if not self._check_id():
             raise RuntimeError("Could not read ID")
+        # TODO: _ENABLED_SENSOR_REPORTS
         self._enable_feature(_BNO_REPORT_GYROSCOPE)  # gyro
         self._enable_feature(_BNO_REPORT_ACCELEROMETER)  # accelerometer
         self._enable_feature(_BNO_REPORT_LINEAR_ACCELERATION)  # linear acceleration
@@ -272,9 +286,13 @@ class BNO080:
         self._enable_feature(_BNO_REPORT_MAGNETIC_FIELD)  # magnetometer
 
     @property
+    @elapsed_time
     def magnetic(self):
         """A tuple of the current magnetic field measurements on the X, Y, and Z axes"""
-        # receive packets, and dump until you get a quat packet
+
+        debug_state = self._debug
+        self._debug = True
+
         while True:  # add timeout
             new_packet = self._wait_for_packet_type(_BNO_CHANNEL_INPUT_SENSOR_REPORTS)
             self._dbg("Got sensor report:")
@@ -283,12 +301,14 @@ class BNO080:
             if new_packet.data[5] != _BNO_REPORT_MAGNETIC_FIELD:
                 continue
 
-            return _parse_report_data(new_packet, _MAG_SCALAR)
+            mag_tuple = _parse_report_data(new_packet, _MAG_SCALAR)
+
+            self._debug = debug_state
+            return mag_tuple
 
     @property
     def quaternion(self):
         """A quaternion representing the current rotation vector"""
-        # receive packets, and dump until you get a quat packet
         while True:  # add timeout
             new_packet = self._wait_for_packet_type(_BNO_CHANNEL_INPUT_SENSOR_REPORTS)
             self._dbg("Got sensor report:")
@@ -304,7 +324,6 @@ class BNO080:
     def linear_acceleration(self):
         """A tuple representing the current linear acceleration values on the X, Y, and Z
         axes in meters per second squared"""
-        # receive packets, and dump until you get a quat packet
         while True:  # add timeout
             new_packet = self._wait_for_packet_type(_BNO_CHANNEL_INPUT_SENSOR_REPORTS)
             if self._debug:
@@ -322,7 +341,8 @@ class BNO080:
         while True:  # add timeout
             new_packet = self._wait_for_packet_type(_BNO_CHANNEL_INPUT_SENSOR_REPORTS)
             self._dbg("Got sensor report:")
-            self._print_buffer()
+            if self._debug:
+                print(new_packet)
             if new_packet.data[5] != _BNO_REPORT_ACCELEROMETER:
                 continue
 
@@ -336,39 +356,73 @@ class BNO080:
         while True:  # add timeout
             new_packet = self._wait_for_packet_type(_BNO_CHANNEL_INPUT_SENSOR_REPORTS)
             self._dbg("Got sensor report:")
-            self._print_buffer()
+            if self._debug:
+                print(new_packet)
+
             if new_packet.data[5] != _BNO_REPORT_GYROSCOPE:
                 continue
 
             return _parse_report_data(new_packet, _GYRO_SCALAR, 3)
+
+    def _store_sensor_report(self, packet):
+        self._reading[packet.report_id] = _parse_report_data(packet, self._debug)
+
+    def _process_available_packets(self):
+        while self._data_ready:
+            new_packet = self._read_packet()
+            self._handle_packet(new_packet)
 
     def _wait_for_packet_type(self, channel_number, report_id=None, timeout=5.0):
         if report_id:
             report_id_str = " with report id %s" % hex(report_id)
         else:
             report_id_str = ""
-        self._dbg("** WAITing for packet on channel", channel_number, report_id_str)
+        self._dbg("** Waiting for packet on channel", channel_number, report_id_str)
         start_time = monotonic()
         while _elapsed(start_time) < timeout:
             new_packet = self._wait_for_packet()
-            self._dbg("\tGot packet for channel", new_packet.header.channel_number)
-            self._dbg("\tNew packet Report ID", hex(new_packet.report_id))
+
             if new_packet.channel_number == channel_number:
-                self._dbg("\t\tchannel matches")
                 if report_id:
                     if new_packet.report_id == report_id:
-                        self._dbg("\t\treport ID matches")
                         return new_packet
-                    self._dbg("\t\treport ID *DOES NOT* match")
                 else:
                     return new_packet
             self._handle_packet(new_packet)
 
         raise RuntimeError("Timed out waiting for a packet on channel", channel_number)
 
+    def _wait_for_packet(self, timeout=_PACKET_READ_TIMEOUT):
+        start_time = monotonic()
+        while _elapsed(start_time) < timeout:
+            if not self._data_ready:
+                continue
+
+            self._dbg("")
+            self._dbg("packet ready reading")
+            new_packet = self._read_packet()
+            # new_packet = Packet(self._data_buffer)
+            if self._debug:
+                print(new_packet)
+            return new_packet
+        raise RuntimeError("Timed out waiting for a packet")
+
+    # update the cached sequence number so we know what to increment from
+    # TODO: this is wrong there should be one per channel per direction
+    def _update_sequence_number(self, new_packet, is_write=False):
+        channel = new_packet.channel_number
+        seq = new_packet.header.sequence_number
+        self._sequence_number[channel] = seq
+
     def _handle_packet(self, packet):
-        self._dbg("** HANDLING NON-REQUESTED PACKET **")
-        # advertisement; match on channel+seq, len
+        if self._debug:
+            self._dbg("Handling packet:")
+            print(packet)
+
+        if packet.channel_number == _BNO_CHANNEL_INPUT_SENSOR_REPORTS and packet.report_id in [_ENABLED_SENSOR_REPORTS]:
+            self._store_sensor_report(packet)
+
+        # advertisement match on channel+seq, len
         # DBG::[  0] 0x14 0x81 0x00 0x01
         # DBG::[  4] 0x00 0x01 0x04 0x00
 
@@ -391,7 +445,7 @@ class BNO080:
                 self._dbg("reinitializing")
                 self.initialize()
 
-        # 0xF1 == command response; Command is 0x84? - unsolicited initialize
+        # 0xF1 == command response Command is 0x84? - unsolicited initialize
         # DBG::[  0] 0x14 0x80 0x02 0x01
         # DBG::[  4] 0xF1 0x00 0x84 0x00
         # DBG::[  8] 0x00 0x00 0x01 0x00
@@ -426,23 +480,34 @@ class BNO080:
         # DBG::[ 16] 0xFD 0xAB 0x07 0x72
         # DBG::[ 20] 0x3F 0x44 0x32
 
-    def _wait_for_packet(self, timeout=_PACKET_READ_TIMEOUT):
-        start_time = monotonic()
-        while _elapsed(start_time) < timeout:
-            if not self._data_ready():
-                continue
 
-            self._dbg("")
-            self._dbg("packet ready; reading")
-            self._read_packet()
-            new_packet = Packet(self._data_buffer)
-            if self._debug:
-                print(new_packet)
-            return new_packet
-        raise RuntimeError("Timed out waiting for a packet")
+
+	# self._data_buffer[0] = SHTP_REPORT_SET_FEATURE_COMMAND	 # Set feature command. Reference page 55
+	# self._data_buffer[1] = reportID							   # Feature Report ID. 0x01 = Accelerometer, 0x05 = Rotation vector
+	# self._data_buffer[2] = 0								   # Feature flags
+
+    # self._data_buffer[3] = 0								   # Change sensitivity (LSB)
+	# self._data_buffer[4] = 0								   # Change sensitivity (MSB)
+
+	# self._data_buffer[5] = (microsBetweenReports >> 0) & 0xFF  # Report interval (LSB) in microseconds. 0x7A120 = 500ms
+	# self._data_buffer[6] = (microsBetweenReports >> 8) & 0xFF  # Report interval
+	# self._data_buffer[7] = (microsBetweenReports >> 16) & 0xFF # Report interval
+	# self._data_buffer[8] = (microsBetweenReports >> 24) & 0xFF # Report interval (MSB)
+
+    # self._data_buffer[9] = 0								   # Batch Interval (LSB)
+	# self._data_buffer[10] = 0								   # Batch Interval
+	# self._data_buffer[11] = 0								   # Batch Interval
+	# self._data_buffer[12] = 0								   # Batch Interval (MSB)
+
+    # self._data_buffer[13] = (specificConfig >> 0) & 0xFF	   # Sensor-specific config (LSB)
+	# self._data_buffer[14] = (specificConfig >> 8) & 0xFF	   # Sensor-specific config
+	# self._data_buffer[15] = (specificConfig >> 16) & 0xFF	  # Sensor-specific config
+	# self._data_buffer[16] = (specificConfig >> 24) & 0xFF	  # Sensor-specific config (MSB)
+
 
     @staticmethod
     def _get_feature_enable_report(feature_id):
+        # TODO !!! ALLOCATION !!!
         set_feature_report = bytearray(17)
         set_feature_report[0] = _BNO_CMD_SET_FEATURE_COMMAND
         set_feature_report[1] = feature_id
@@ -458,10 +523,17 @@ class BNO080:
             packet = self._wait_for_packet_type(
                 _BNO_CHANNEL_CONTROL, _BNO_CMD_GET_FEATURE_RESPONSE
             )
-            self._print_buffer()
+            if self._debug:
+                print(packet)
 
             if packet.data[1] == feature_id:
-                self._dbg("Done!")
+                if (
+                    feature_id == _BNO_REPORT_ROTATION_VECTOR
+                ):  # check for other vector types as well
+                    self._readings[feature_id] = (0.0, 0.0, 0.0, 0.0)
+                else:
+                    self._readings[feature_id] = (0.0, 0.0, 0.0)
+                self._dbg("Enabled")
                 return True
 
         return False
@@ -527,23 +599,24 @@ class BNO080:
         self._dbg(packet_header)
         return packet_header
 
-    @elapsed_time
-    def _print_buffer(self, write_full=False):
-        header = Packet.header_from_buffer(self._data_buffer)
-        length = header.packet_byte_count
-        if not self._debug:
-            return
-        if write_full:
-            print(" writing complete buffer")
-            length = len(self._data_buffer)
+    # @elapsed_time
+    # def _print_buffer(self, write_full=False):
+    #     if not self._debug:
+    #         return
+    #     header = Packet.header_from_buffer(self._data_buffer)
+    #     length = header.packet_byte_count
+    #     if write_full:
+    #         print(" writing complete buffer")
+    #         length = len(self._data_buffer)
 
-        for idx, packet_byte in enumerate(self._data_buffer[:length]):
-            if (idx % 4) == 0:
-                print("\n\t\tDBG::[%3d] " % idx, end="")
-            print("0x{:02X} ".format(packet_byte), end="")
-        print("")
+    #     for idx, packet_byte in enumerate(self._data_buffer[:length]):
+    #         if (idx % 4) == 0:
+    #             print("\n\t\tDBG::[%3d] " % idx, end="")
+    #         print("0x{:02X} ".format(packet_byte), end="")
+    #     print("")
 
     # pylint:disable=no-self-use
+    @property
     def _data_ready(self):
         raise RuntimeError("Not implemented")
 
