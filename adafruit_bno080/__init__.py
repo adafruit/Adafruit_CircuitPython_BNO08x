@@ -95,6 +95,7 @@ _MAG_SCALAR = _Q_POINT_4_SCALAR
 # _ANGULAR_VELOCITY_SCALAR = _Q_POINT_10_SCALAR
 
 _REPORT_LENGTHS = {
+    _SHTP_REPORT_PRODUCT_ID_RESPONSE : 16,
     _BNO_CMD_GET_FEATURE_RESPONSE : 17,
     _BNO_CMD_COMMAND_RESPONSE : 16,
     _SHTP_REPORT_PRODUCT_ID_RESPONSE : 16,
@@ -103,10 +104,10 @@ _REPORT_LENGTHS = {
 }
 # length is probably deterministic, like axes * 2 +4
 _ENABLED_SENSOR_REPORTS = {
-    _BNO_REPORT_ACCELEROMETER : (_ACCEL_SCALAR, 3, 10),
-    _BNO_REPORT_GYROSCOPE : (_GYRO_SCALAR, 3, 10),
-    _BNO_REPORT_MAGNETIC_FIELD : (_MAG_SCALAR, 3, 10),
-    _BNO_REPORT_LINEAR_ACCELERATION : (_ACCEL_SCALAR, 3, 10),
+    # _BNO_REPORT_ACCELEROMETER : (_ACCEL_SCALAR, 3, 10),
+    # _BNO_REPORT_GYROSCOPE : (_GYRO_SCALAR, 3, 10),
+    # _BNO_REPORT_MAGNETIC_FIELD : (_MAG_SCALAR, 3, 10),
+    # _BNO_REPORT_LINEAR_ACCELERATION : (_ACCEL_SCALAR, 3, 10),
     _BNO_REPORT_ROTATION_VECTOR : (_QUAT_SCALAR, 4, 14), # apparently not +2 bytes for accuracy estimate?
 }
 
@@ -150,70 +151,74 @@ def elapsed_time(func):
     return wrapper_timer
 
 def _parse_sensor_report_data(report_bytes):
-
+    debug=True
     data_offset = 4 # this may not always be true
     report_id, sequence_number, status, delay = report_bytes[0:data_offset]
+    print("DBG::\t\t report_id, sequence_number, status, delay", report_id, sequence_number, status, delay)
+    scalar, count, _report_length = _ENABLED_SENSOR_REPORTS[report_id]
 
-    scalar, count, report_length = _ENABLED_SENSOR_REPORTS[report_id]
-
-    if debug: print("\t\tDBG::Scaling %d bytes of sensor data with scalar %.3f)"%(scalar, count))
+    if debug: print("DBG::\t\tScaling %d bytes of sensor data with scalar %.10f)"%(count, scalar))
     results = []
 
     for _offset_idx in range(count):
         total_offset = data_offset + (_offset_idx * 2)
         raw_data = unpack_from("<h", report_bytes, offset=total_offset)[0]
         scaled_data = raw_data * scalar
-        if debug: print("\t\tDBG:: [%d] raw: %d scaled: %.3f"%(_offset_idx, raw_data, scaled_data))
+        if debug: print("DBG::\t\t [%d] raw: %d scaled: %.3f"%(_offset_idx, raw_data, scaled_data))
         results.append(scaled_data)
 
     return tuple(results)
 
-def _parse_report(report_bytes):
-    # TODO: Parse and store time offset
-    # Timestamp offset
-    # 0 Report ID=0xFB
-    # 1 Base Delta LSB: relative to transport-defined reference point. Signed. Units are 100 microsecond ticks.
-    # 2 Base Delta
-    # 3 Base Delta
-    # 4 Base Delta MSB
-    pass
-def process_report_data(report_bytes):
+
+def parse_sensor_id(buffer):
+    """Parse the fields of a product id report"""
+    if not buffer[0] == _SHTP_REPORT_PRODUCT_ID_RESPONSE:
+        raise AttributeError("Wrong report id for sensor id: %s"%hex(buffer[0]))
+
+    sw_major = unpack_from("<B", buffer, offset=2)[0]
+    sw_minor = unpack_from("<B", buffer, offset=3)[0]
+    sw_patch = unpack_from("<H", buffer, offset=12)[0]
+    sw_part_number = unpack_from("<I", buffer, offset=4)[0]
+    sw_build_number = unpack_from("<I", buffer, offset=8)[0]
+
+    return (sw_part_number, sw_major, sw_minor, sw_patch, sw_build_number)
+
+def _parse_control_report(report_bytes):
+    if report_bytes[0] == _SHTP_REPORT_PRODUCT_ID_RESPONSE:
+        parse_sensor_id(report_bytes)
+
+
+def process_sensor_report(report_bytes):
     report_id = report_bytes[0]
     if report_id < 0xF0:
         return _parse_sensor_report_data(report_bytes)
-    return _parse_report(report_bytes)
-    # 0 Report ID = 0x01
-    # 1 Sequence number
-    # 2 Status
-    # 3 Delay
-    # 4 Accelerometer Axis X LSB
-    # 5 Accelerometer Axis X MSB
-    # 6 Accelerometer Axis Y LSB
-    # 7 Accelerometer Axis Y MSB
-    # 8 Accelerometer Axis Z LSB
-    # 9 Accelerometer Axis Z MSB
-    pass
+
+return _parse_control_report(report_bytes)
+
 def _report_length(report_id):
     if report_id < 0xF0: # it's a sensor report
         return _ENABLED_SENSOR_REPORTS[report_id][2]
-    
+
     return _REPORT_LENGTHS[report_id]
-def _separate_batch(packet):
+
+def _separate_batch(packet, report_slices):
     # get first report id, loop up its report length
     # read that many bytes, parse them
-
-    bytes_remaining = packet.header.data_length
     next_byte_index = 0
     while next_byte_index < packet.header.data_length:
-        # handle incomplete remainder
         report_id = packet.data[next_byte_index]
         required_bytes = _report_length(report_id)
+
         unprocessed_byte_count = packet.header.data_length - next_byte_index
+
+        # handle incomplete remainder
         if unprocessed_byte_count < required_bytes:
             raise RuntimeError("Unprocessable Batch bytes", unprocessed_byte_count)
         # we have enough bytes to read
-        # process a slice of the data corresponding to the bytes for the current report
-        process_report_data(packet.data[next_byte_index:next_byte_index+required_bytes])
+        # add a slice to the list that was passed in
+        report_slice = packet.data[next_byte_index:next_byte_index + required_bytes]
+
+        report_slices.append([report_slice[0], report_slice])
         next_byte_index = next_byte_index + required_bytes
 
 class Packet:
@@ -230,15 +235,15 @@ class Packet:
 
         length = self.header.packet_byte_count
         outstr = "\n\t\t********** Packet *************\n"
-        outstr += "\t\tDBG:: HEADER:\n"
+        outstr += "DBG::\t\t HEADER:\n"
 
-        outstr += "\t\tDBG:: Data Len: %d\n" % (self.header.data_length)
-        outstr += "\t\tDBG:: Channel: %s (%d)\n" %(channels[self.channel_number], self.channel_number)
-        if self.channel_number == _BNO_CHANNEL_INPUT_SENSOR_REPORTS:
+        outstr += "DBG::\t\t Data Len: %d\n" % (self.header.data_length)
+        outstr += "DBG::\t\t Channel: %s (%d)\n" %(channels[self.channel_number], self.channel_number)
+        if self.channel_number in [_BNO_CHANNEL_CONTROL, _BNO_CHANNEL_INPUT_SENSOR_REPORTS]:
             if self.report_id in reports:
-                outstr += "\t\tDBG:: \tReport Type: %s(%d)\n" %( reports[self.report_id], self.report_id)
+                outstr += "DBG::\t\t \tReport Type: %s(%d)\n" %( reports[self.report_id], self.report_id)
             else:
-                outstr += "\t\tDBG:: \t** UNKNOWN Report Type **: %s\n" % hex(
+                outstr += "DBG::\t\t \t** UNKNOWN Report Type **: %s\n" % hex(
                     self.report_id
                 )
 
@@ -247,16 +252,17 @@ class Packet:
                 and len(self.data) >= 6
                 and self.data[5] in reports
             ):
-                outstr += "\t\tDBG:: \tSensor Report Type: %s(%d)\n" %( reports[self.data[5]], self.data[5])
+                outstr += "DBG::\t\t \tSensor Report Type: %s(%d)\n" %( reports[self.data[5]], self.data[5])
 
-        outstr += "\t\tDBG:: Sequence number: %s\n" % self.header.sequence_number
+
+        outstr += "DBG::\t\t Sequence number: %s\n" % self.header.sequence_number
         outstr += "\n"
-        outstr += "\t\tDBG:: Data:"
+        outstr += "DBG::\t\t Data:"
 
         for idx, packet_byte in enumerate(self.data[:length]):
             packet_index = idx + 4
             if (packet_index % 4) == 0:
-                outstr += "\n\t\tDBG::[0x{:02X}] ".format(packet_index)
+                outstr += "\nDBG::\t\t[0x{:02X}] ".format(packet_index)
             outstr += "0x{:02X} ".format(packet_byte)
         outstr += "\n"
         outstr += "\t\t*******************************\n"
@@ -311,6 +317,7 @@ class BNO080:
         self._debug = debug
         self._dbg("********** __init__ *************")
         self._data_buffer = bytearray(DATA_BUFFER_SIZE)
+        self._packet_slices = []
         # TODO: this is wrong there should be one per channel per direction
 
         self._sequence_number = [0, 0, 0, 0, 0, 0]
@@ -330,11 +337,6 @@ class BNO080:
             raise RuntimeError("Could not read ID")
         for report_type in _ENABLED_SENSOR_REPORTS:
             self._enable_feature(report_type)
-        # self._enable_feature(_BNO_REPORT_GYROSCOPE)  # gyro
-        # self._enable_feature(_BNO_REPORT_ACCELEROMETER)  # accelerometer
-        # self._enable_feature(_BNO_REPORT_LINEAR_ACCELERATION)  # linear acceleration
-        # self._enable_feature(_BNO_REPORT_ROTATION_VECTOR)  # quaternion
-        # self._enable_feature(_BNO_REPORT_MAGNETIC_FIELD)  # magnetometer
 
     @property
     def magnetic(self):
@@ -376,9 +378,12 @@ class BNO080:
 
     # # decorator?
     def _process_available_packets(self):
+        processed_count = 0
         while self._data_ready:
             new_packet = self._read_packet()
             self._handle_packet(new_packet)
+            processed_count += 1
+            self._dbg("Processesd", processed_count, "packets")
 
     def _wait_for_packet_type(self, channel_number, report_id=None, timeout=5.0):
         if report_id:
@@ -405,13 +410,7 @@ class BNO080:
         while _elapsed(start_time) < timeout:
             if not self._data_ready:
                 continue
-
-            self._dbg("")
-            self._dbg("packet ready reading")
             new_packet = self._read_packet()
-            # new_packet = Packet(self._data_buffer)
-            if self._debug:
-                print(new_packet)
             return new_packet
         raise RuntimeError("Timed out waiting for a packet")
 
@@ -423,101 +422,48 @@ class BNO080:
         self._sequence_number[channel] = seq
 
     def _handle_packet(self, packet):
-        if self._debug:
-            self._dbg("Handling packet:")
-            print(packet)
+
         # split out reports first
-        _separate_batch(packet)
-        # if packet.channel_number == _BNO_CHANNEL_INPUT_SENSOR_REPORTS:
-        #     if packet.data[5] in _ENABLED_SENSOR_REPORTS:
-        #         self._dbg("storing sensor report")
-        #         self._parse_sensor_report(packet)
+        _separate_batch(packet, self._packet_slices)
+        while len(self._packet_slices) > 0:
+            self._process_report(self._packet_slices.pop())
 
 
+        # TODO: Move into individual handlers
+        # if packet.channel_number == _BNO_CHANNEL_SHTP_COMMAND:
+        #     if packet.header.data_length == 272:
+        #         self._dbg("Got 272 len packet on channel 0")
+        #         self._wait_for_initialize = True
+        #         self._init_complete = False
+        #         self._id_read = False
 
-        # advertisement match on channel+seq, len
-        # DBG::[  0] 0x14 0x81 0x00 0x01
-        # DBG::[  4] 0x00 0x01 0x04 0x00
+        # if packet.channel_number == BNO_CHANNEL_EXE:
+        #     if packet.data[0] == 1:
+        #         self._dbg("********** Found reset packet! ************")
+        #         self._init_complete = False
+        #         self._dbg("...sleeping")
+        #         sleep(1)
+        #         self._dbg("reinitializing")
+        #         self.initialize()
 
-        if packet.channel_number == _BNO_CHANNEL_SHTP_COMMAND:
-            if packet.header.data_length == 272:
-                self._dbg("Got 272 len packet on channel 0")
-                self._wait_for_initialize = True
-                self._init_complete = False
-                self._id_read = False
+        # if packet.channel_number == _BNO_CHANNEL_CONTROL:
+        #     if packet.report_id == _BNO_CMD_COMMAND_RESPONSE:
+        #         self._dbg("Got command response")
+        #         if packet.data[2] == 0x84:
+        #             self._dbg("Got unsolicited init response")
+        #             if self._wait_for_initialize:
+        #                 self._wait_for_initialize = False
+        #                 self._init_complete = True
 
-        # ch 1 command 1 = reset
-        # DBG::[  0] 0x05 0x80 0x01 0x01
-        # DBG::[  4] 0x01
-        if packet.channel_number == BNO_CHANNEL_EXE:
-            if packet.data[0] == 1:
-                self._dbg("********** Found reset packet! ************")
-                self._init_complete = False
-                self._dbg("...sleeping")
-                sleep(1)
-                self._dbg("reinitializing")
-                self.initialize()
+        #             else:
+        #                 raise RuntimeError(
+        #                     "Unsolicted init received before Advertisement"
+        #                 )
 
-        # 0xF1 == command response Command is 0x84? - unsolicited initialize
-        # DBG::[  0] 0x14 0x80 0x02 0x01
-        # DBG::[  4] 0xF1 0x00 0x84 0x00
-        # DBG::[  8] 0x00 0x00 0x01 0x00
-        # DBG::[ 12] 0x00 0x00 0x00 0x00
-        # DBG::[ 16] 0x00 0x00 0x00 0x00
-        if packet.channel_number == _BNO_CHANNEL_CONTROL:
-            if packet.report_id == _BNO_CMD_COMMAND_RESPONSE:
-                self._dbg("Got command response")
-                if packet.data[2] == 0x84:
-                    self._dbg("Got unsolicited init response")
-                    if self._wait_for_initialize:
-                        self._wait_for_initialize = False
-                        self._init_complete = True
+    def _process_report(self, report_id, report_bytes):
+        # report handler!
 
-                    else:
-                        raise RuntimeError(
-                            "Unsolicted init received before Advertisement"
-                        )
-
-        # Ch 2 ID Response
-        # DBG::[  0] 0x14 0x80 0x02 0x03
-        # DBG::[  4] 0xF8 0x03 0x03 0x02
-        # DBG::[  8] 0x98 0xA4 0x98 0x00
-        # DBG::[ 12] 0x72 0x01 0x00 0x00
-        # DBG::[ 16] 0x07 0x00 0x00 0x00
-
-        # Ch 3, ReportID: 0xFB timestamp
-        # DBG::[  0] 0x17 0x80 0x03 0x01
-        # DBG::[  4] 0xFB 0x17 0x00 0x00
-        # DBG::[  8] 0x00 0x05 0x00 0x00
-        # DBG::[ 12] 0x00 0x3D 0xFD 0xF4
-        # DBG::[ 16] 0xFD 0xAB 0x07 0x72
-        # DBG::[ 20] 0x3F 0x44 0x32
-
-
-
-	# self._data_buffer[0] = SHTP_REPORT_SET_FEATURE_COMMAND	 # Set feature command. Reference page 55
-	# self._data_buffer[1] = reportID							   # Feature Report ID. 0x01 = Accelerometer, 0x05 = Rotation vector
-	# self._data_buffer[2] = 0								   # Feature flags
-
-    # self._data_buffer[3] = 0								   # Change sensitivity (LSB)
-	# self._data_buffer[4] = 0								   # Change sensitivity (MSB)
-
-	# self._data_buffer[5] = (microsBetweenReports >> 0) & 0xFF  # Report interval (LSB) in microseconds. 0x7A120 = 500ms
-	# self._data_buffer[6] = (microsBetweenReports >> 8) & 0xFF  # Report interval
-	# self._data_buffer[7] = (microsBetweenReports >> 16) & 0xFF # Report interval
-	# self._data_buffer[8] = (microsBetweenReports >> 24) & 0xFF # Report interval (MSB)
-
-    # self._data_buffer[9] = 0								   # Batch Interval (LSB)
-	# self._data_buffer[10] = 0								   # Batch Interval
-	# self._data_buffer[11] = 0								   # Batch Interval
-	# self._data_buffer[12] = 0								   # Batch Interval (MSB)
-
-    # self._data_buffer[13] = (specificConfig >> 0) & 0xFF	   # Sensor-specific config (LSB)
-	# self._data_buffer[14] = (specificConfig >> 8) & 0xFF	   # Sensor-specific config
-	# self._data_buffer[15] = (specificConfig >> 16) & 0xFF	  # Sensor-specific config
-	# self._data_buffer[16] = (specificConfig >> 24) & 0xFF	  # Sensor-specific config (MSB)
-
-
+    # TODO: Make this a Packet creation
     @staticmethod
     def _get_feature_enable_report(feature_id):
         # TODO !!! ALLOCATION !!!
@@ -536,8 +482,6 @@ class BNO080:
             packet = self._wait_for_packet_type(
                 _BNO_CHANNEL_CONTROL, _BNO_CMD_GET_FEATURE_RESPONSE
             )
-            if self._debug:
-                print(packet)
 
             if packet.data[1] == feature_id:
                 if (
@@ -597,7 +541,7 @@ class BNO080:
 
     def _dbg(self, *args, **kwargs):
         if self._debug:
-            print("DBG::\t\t\t\t", *args, **kwargs)
+            print("DBG::\t\t", *args, **kwargs)
 
     def _get_data(self, index, fmt_string):
         # index arg is not including header, so add 4 into data buffer
@@ -624,7 +568,7 @@ class BNO080:
 
     #     for idx, packet_byte in enumerate(self._data_buffer[:length]):
     #         if (idx % 4) == 0:
-    #             print("\n\t\tDBG::[%3d] " % idx, end="")
+    #             print("\nDBG::\t\t[%3d] " % idx, end="")
     #         print("0x{:02X} ".format(packet_byte), end="")
     #     print("")
 

@@ -25,7 +25,7 @@ channels = {
 #define CALIBRATE_STOP 5
 # 2 (SH-2 control)
 # Host to BNO
- 
+
 # 0xFE
 # Get Feature Request
 # 2 (SH-2 control)
@@ -34,9 +34,9 @@ channels = {
 # Set Feature Command
 # 2 (SH-2 control)
 # BNO to host
- 
+
 # 0xFC
- 
+
 # Get Feature Response
 # 2 (SH-2 control)
 # Host to BNO
@@ -44,28 +44,28 @@ channels = {
 # Product ID Request
 # 2 (SH-2 control)
 # BNO to host
- 
+
 # 0xF8
 # Product ID Response
 # 2 (SH-2 control)
 # Host to BNO
- 
+
 # 0xF7
 # FRS Write Request
 # 2 (SH-2 control)
 # Host to BNO
- 
+
 # 0xF6
 # FRS Write Data
 # 2 (SH-2 control)
 # BNO to Host
 # 0xF5
- 
+
 # FRS Write Response
 # 2 (SH-2 control)
 # Host to BNO
 # 0xF4
- 
+
 # FRS Read Request
 # 2 (SH-2 control)
 # BNO to host
@@ -73,17 +73,17 @@ channels = {
 # FRS Read Response
 # 2 (SH-2 control)
 # Host to BNO
- 
+
 # 0xF2
- 
+
 # Command Request
 # 2 (SH-2 control)
- 
+
 # BNO to host
- 
+
 # 0xF1
- 
- 
+
+
 # Command Response
 
 reports = {

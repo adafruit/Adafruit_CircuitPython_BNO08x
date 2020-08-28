@@ -92,6 +92,7 @@ class BNO080_SPI(BNO080):
 
         # TODO: Allocaiton
         new_packet = Packet(self._data_buffer)
+        if self._debug: print(new_packet)
         self._update_sequence_number(new_packet)
 
         return new_packet

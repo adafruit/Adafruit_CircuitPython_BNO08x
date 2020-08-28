@@ -95,8 +95,9 @@ class BNO080_I2C(BNO080):
         
         self._read(packet_byte_count)
 
-        # TODO: Allocaiton
+        # TODO: Allocation
         new_packet = Packet(self._data_buffer)
+        if self._debug: print(new_packet)
 
         self._update_sequence_number(new_packet)
 
