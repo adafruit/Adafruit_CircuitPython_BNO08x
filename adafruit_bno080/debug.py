@@ -133,18 +133,18 @@ reports = {
     0x0F : "UNCALIBRATED_MAGNETIC_FIELD"
 }
 # # Gravity (m/s2)
-# _BNO_REPORT_GRAVITY = const(0x06)
+# _BNO_REPORT_GRAVITY = const(0x06) 10 bytes
 # # Raw uncalibrated accelerometer data (ADC units). Used for testing
-# _BNO_REPORT_RAW_ACCELEROMETER = const(0x14)
+# _BNO_REPORT_RAW_ACCELEROMETER = const(0x14) 16
 # # Uncalibrated gyroscope (rad/s).
-# _BNO_REPORT_UNCALIBRATED_GYROSCOPE = const(0x07)
+# _BNO_REPORT_UNCALIBRATED_GYROSCOPE = const(0x07) 16
 # # Raw uncalibrated gyroscope (ADC units).
-# _BNO_REPORT_RAW_GYROSCOPE = const(0x15)
+# _BNO_REPORT_RAW_GYROSCOPE = const(0x15) 16
 # # Magnetic field uncalibrated (in µTesla). The magnetic field measurement without hard-iron offset applied,
 # # the hard-iron estimate is provided as a separate parameter.
 # _BNO_REPORT_UNCALIBRATED_MAGNETIC_FIELD = const(0x0F)
 # # Raw magnetic field measurement (in ADC units). Direct data from the magnetometer. Used for testing.
-# _BNO_REPORT_RAW_MAGNETOMETER = const(0x16)
+# _BNO_REPORT_RAW_MAGNETOMETER = const(0x16) 16
 # # Geomagnetic Rotation Vector
 # _BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR = const(0x09)
 # # Game Rotation Vector

@@ -94,12 +94,20 @@ _MAG_SCALAR = _Q_POINT_4_SCALAR
 # _QUAT_RADIAN_ACCURACY_SCALAR = _Q_POINT_12_SCALAR
 # _ANGULAR_VELOCITY_SCALAR = _Q_POINT_10_SCALAR
 
+_REPORT_LENGTHS = {
+    _BNO_CMD_GET_FEATURE_RESPONSE : 17,
+    _BNO_CMD_COMMAND_RESPONSE : 16,
+    _SHTP_REPORT_PRODUCT_ID_RESPONSE : 16,
+    _BNO_CMD_BASE_TIMESTAMP : 5,
+    _BNO_CMD_TIMESTAMP_REBASE : 5
+}
+# length is probably deterministic, like axes * 2 +4
 _ENABLED_SENSOR_REPORTS = {
-    _BNO_REPORT_ACCELEROMETER : (_ACCEL_SCALAR, 3),
-    # _BNO_REPORT_GYROSCOPE : (_GYRO_SCALAR, 3),
-    # _BNO_REPORT_MAGNETIC_FIELD : (_MAG_SCALAR, 3),
-    # _BNO_REPORT_LINEAR_ACCELERATION : (_ACCEL_SCALAR, 3),
-    # _BNO_REPORT_ROTATION_VECTOR : (_QUAT_SCALAR, 4),
+    _BNO_REPORT_ACCELEROMETER : (_ACCEL_SCALAR, 3, 10),
+    _BNO_REPORT_GYROSCOPE : (_GYRO_SCALAR, 3, 10),
+    _BNO_REPORT_MAGNETIC_FIELD : (_MAG_SCALAR, 3, 10),
+    _BNO_REPORT_LINEAR_ACCELERATION : (_ACCEL_SCALAR, 3, 10),
+    _BNO_REPORT_ROTATION_VECTOR : (_QUAT_SCALAR, 4, 14), # apparently not +2 bytes for accuracy estimate?
 }
 
 DATA_BUFFER_SIZE = const(512)  # data buffer size. obviously eats ram
@@ -141,7 +149,26 @@ def elapsed_time(func):
 
     return wrapper_timer
 
-def _parse_report_data(packet, debug=False):
+def _parse_sensor_report_data(report_bytes):
+
+    data_offset = 4 # this may not always be true
+    report_id, sequence_number, status, delay = report_bytes[0:data_offset]
+
+    scalar, count, report_length = _ENABLED_SENSOR_REPORTS[report_id]
+
+    if debug: print("\t\tDBG::Scaling %d bytes of sensor data with scalar %.3f)"%(scalar, count))
+    results = []
+
+    for _offset_idx in range(count):
+        total_offset = data_offset + (_offset_idx * 2)
+        raw_data = unpack_from("<h", report_bytes, offset=total_offset)[0]
+        scaled_data = raw_data * scalar
+        if debug: print("\t\tDBG:: [%d] raw: %d scaled: %.3f"%(_offset_idx, raw_data, scaled_data))
+        results.append(scaled_data)
+
+    return tuple(results)
+
+def _parse_report(report_bytes):
     # TODO: Parse and store time offset
     # Timestamp offset
     # 0 Report ID=0xFB
@@ -149,22 +176,45 @@ def _parse_report_data(packet, debug=False):
     # 2 Base Delta
     # 3 Base Delta
     # 4 Base Delta MSB
-    report_id = packet.report_id
-    if report_id == _BNO_CMD_BASE_TIMESTAMP:
-        report_id = packet.data[5]
-    scalar, count = _ENABLED_SENSOR_REPORTS[report_id]
-    if debug: print("\t\tDBG::Scaling %d bytes of sensor data with scalar %.3f)"%(scalar, count))
-    results = []
-    base_offset = 9
-    for _offset_idx in range(count):
-        total_offset = base_offset + (_offset_idx * 2)
-        raw_data = unpack_from("<h", packet.data, offset=total_offset)[0]
-        scaled_data = raw_data * scalar
-        if debug: print("\t\tDBG:: [%d] raw: %d scaled: %.3f"%(_offset_idx, raw_data, scaled_data))
-        results.append(scaled_data)
+    pass
+def process_report_data(report_bytes):
+    report_id = report_bytes[0]
+    if report_id < 0xF0:
+        return _parse_sensor_report_data(report_bytes)
+    return _parse_report(report_bytes)
+    # 0 Report ID = 0x01
+    # 1 Sequence number
+    # 2 Status
+    # 3 Delay
+    # 4 Accelerometer Axis X LSB
+    # 5 Accelerometer Axis X MSB
+    # 6 Accelerometer Axis Y LSB
+    # 7 Accelerometer Axis Y MSB
+    # 8 Accelerometer Axis Z LSB
+    # 9 Accelerometer Axis Z MSB
+    pass
+def _report_length(report_id):
+    if report_id < 0xF0: # it's a sensor report
+        return _ENABLED_SENSOR_REPORTS[report_id][2]
+    
+    return _REPORT_LENGTHS[report_id]
+def _separate_batch(packet):
+    # get first report id, loop up its report length
+    # read that many bytes, parse them
 
-    return tuple(results)
-
+    bytes_remaining = packet.header.data_length
+    next_byte_index = 0
+    while next_byte_index < packet.header.data_length:
+        # handle incomplete remainder
+        report_id = packet.data[next_byte_index]
+        required_bytes = _report_length(report_id)
+        unprocessed_byte_count = packet.header.data_length - next_byte_index
+        if unprocessed_byte_count < required_bytes:
+            raise RuntimeError("Unprocessable Batch bytes", unprocessed_byte_count)
+        # we have enough bytes to read
+        # process a slice of the data corresponding to the bytes for the current report
+        process_report_data(packet.data[next_byte_index:next_byte_index+required_bytes])
+        next_byte_index = next_byte_index + required_bytes
 
 class Packet:
     """A class representing a Hillcrest LaboratorySensor Hub Transport packet"""
@@ -182,11 +232,11 @@ class Packet:
         outstr = "\n\t\t********** Packet *************\n"
         outstr += "\t\tDBG:: HEADER:\n"
 
-        outstr += "\t\tDBG:: Len: %d\n" % (self.header.data_length)
-        outstr += "\t\tDBG:: Channel: %s\n" % channels[self.header.channel_number]
+        outstr += "\t\tDBG:: Data Len: %d\n" % (self.header.data_length)
+        outstr += "\t\tDBG:: Channel: %s (%d)\n" %(channels[self.channel_number], self.channel_number)
         if self.channel_number == _BNO_CHANNEL_INPUT_SENSOR_REPORTS:
             if self.report_id in reports:
-                outstr += "\t\tDBG:: \tReport Type: %s\n" % reports[self.report_id]
+                outstr += "\t\tDBG:: \tReport Type: %s(%d)\n" %( reports[self.report_id], self.report_id)
             else:
                 outstr += "\t\tDBG:: \t** UNKNOWN Report Type **: %s\n" % hex(
                     self.report_id
@@ -197,7 +247,7 @@ class Packet:
                 and len(self.data) >= 6
                 and self.data[5] in reports
             ):
-                outstr += "\t\tDBG:: \tSensor Report Type: %s\n" % reports[self.data[5]]
+                outstr += "\t\tDBG:: \tSensor Report Type: %s(%d)\n" %( reports[self.data[5]], self.data[5])
 
         outstr += "\t\tDBG:: Sequence number: %s\n" % self.header.sequence_number
         outstr += "\n"
@@ -278,95 +328,53 @@ class BNO080:
         self.reset()
         if not self._check_id():
             raise RuntimeError("Could not read ID")
-        # TODO: _ENABLED_SENSOR_REPORTS
-        self._enable_feature(_BNO_REPORT_GYROSCOPE)  # gyro
-        self._enable_feature(_BNO_REPORT_ACCELEROMETER)  # accelerometer
-        self._enable_feature(_BNO_REPORT_LINEAR_ACCELERATION)  # linear acceleration
-        self._enable_feature(_BNO_REPORT_ROTATION_VECTOR)  # quaternion
-        self._enable_feature(_BNO_REPORT_MAGNETIC_FIELD)  # magnetometer
+        for report_type in _ENABLED_SENSOR_REPORTS:
+            self._enable_feature(report_type)
+        # self._enable_feature(_BNO_REPORT_GYROSCOPE)  # gyro
+        # self._enable_feature(_BNO_REPORT_ACCELEROMETER)  # accelerometer
+        # self._enable_feature(_BNO_REPORT_LINEAR_ACCELERATION)  # linear acceleration
+        # self._enable_feature(_BNO_REPORT_ROTATION_VECTOR)  # quaternion
+        # self._enable_feature(_BNO_REPORT_MAGNETIC_FIELD)  # magnetometer
 
     @property
-    @elapsed_time
     def magnetic(self):
         """A tuple of the current magnetic field measurements on the X, Y, and Z axes"""
-
-        debug_state = self._debug
-        self._debug = True
-
-        while True:  # add timeout
-            new_packet = self._wait_for_packet_type(_BNO_CHANNEL_INPUT_SENSOR_REPORTS)
-            self._dbg("Got sensor report:")
-            if self._debug:
-                print(new_packet)
-            if new_packet.data[5] != _BNO_REPORT_MAGNETIC_FIELD:
-                continue
-
-            mag_tuple = _parse_report_data(new_packet, _MAG_SCALAR)
-
-            self._debug = debug_state
-            return mag_tuple
+        self._process_available_packets() # decorator?
+        return self._readings[_BNO_REPORT_MAGNETIC_FIELD]
 
     @property
     def quaternion(self):
         """A quaternion representing the current rotation vector"""
-        while True:  # add timeout
-            new_packet = self._wait_for_packet_type(_BNO_CHANNEL_INPUT_SENSOR_REPORTS)
-            self._dbg("Got sensor report:")
-            if self._debug:
-                print(new_packet)
-            if new_packet.data[5] != _BNO_REPORT_ROTATION_VECTOR:
-                self._dbg("WRONG REPORT TYPEEEEE")
-                continue
+        self._process_available_packets()
+        return self._readings[_BNO_REPORT_ROTATION_VECTOR]
 
-            return _parse_report_data(new_packet, _QUAT_SCALAR, 4)
 
     @property
     def linear_acceleration(self):
         """A tuple representing the current linear acceleration values on the X, Y, and Z
         axes in meters per second squared"""
-        while True:  # add timeout
-            new_packet = self._wait_for_packet_type(_BNO_CHANNEL_INPUT_SENSOR_REPORTS)
-            if self._debug:
-                print(new_packet)
-            if new_packet.data[5] != _BNO_REPORT_LINEAR_ACCELERATION:
-                continue
+        self._process_available_packets()
+        return self._readings[_BNO_REPORT_LINEAR_ACCELERATION]
 
-            return _parse_report_data(new_packet, _ACCEL_SCALAR)
 
     @property
     def acceleration(self):
         """A tuple representing the acceleration measurements on the X, Y, and Z
         axes in meters per second squared"""
-        # receive packets, and dump until you get an accelerometer packet
-        while True:  # add timeout
-            new_packet = self._wait_for_packet_type(_BNO_CHANNEL_INPUT_SENSOR_REPORTS)
-            self._dbg("Got sensor report:")
-            if self._debug:
-                print(new_packet)
-            if new_packet.data[5] != _BNO_REPORT_ACCELEROMETER:
-                continue
-
-            return _parse_report_data(new_packet, _ACCEL_SCALAR)
+        self._process_available_packets()
+        return self._readings[_BNO_REPORT_ACCELEROMETER]
 
     @property
     def gyro(self):
         """A tuple representing Gyro's rotation measurements on the X, Y, and Z
         axes in radians per second"""
-        # receive packets, and dump until you get a quat packet
-        while True:  # add timeout
-            new_packet = self._wait_for_packet_type(_BNO_CHANNEL_INPUT_SENSOR_REPORTS)
-            self._dbg("Got sensor report:")
-            if self._debug:
-                print(new_packet)
+        self._process_available_packets()
+        return self._readings[_BNO_REPORT_GYROSCOPE]
 
-            if new_packet.data[5] != _BNO_REPORT_GYROSCOPE:
-                continue
+    # def _parse_sensor_report(self, packet):
+    #     self._readings[packet.report_id] = _parse_report_data(packet, self._debug)
 
-            return _parse_report_data(new_packet, _GYRO_SCALAR, 3)
-
-    def _store_sensor_report(self, packet):
-        self._reading[packet.report_id] = _parse_report_data(packet, self._debug)
-
+    # # decorator?
     def _process_available_packets(self):
         while self._data_ready:
             new_packet = self._read_packet()
@@ -418,9 +426,14 @@ class BNO080:
         if self._debug:
             self._dbg("Handling packet:")
             print(packet)
+        # split out reports first
+        _separate_batch(packet)
+        # if packet.channel_number == _BNO_CHANNEL_INPUT_SENSOR_REPORTS:
+        #     if packet.data[5] in _ENABLED_SENSOR_REPORTS:
+        #         self._dbg("storing sensor report")
+        #         self._parse_sensor_report(packet)
 
-        if packet.channel_number == _BNO_CHANNEL_INPUT_SENSOR_REPORTS and packet.report_id in [_ENABLED_SENSOR_REPORTS]:
-            self._store_sensor_report(packet)
+
 
         # advertisement match on channel+seq, len
         # DBG::[  0] 0x14 0x81 0x00 0x01
