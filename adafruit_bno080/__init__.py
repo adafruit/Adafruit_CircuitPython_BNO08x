@@ -157,7 +157,7 @@ def _parse_sensor_report_data(report_bytes):
     print("DBG::\t\t report_id, sequence_number, status, delay", report_id, sequence_number, status, delay)
     scalar, count, _report_length = _ENABLED_SENSOR_REPORTS[report_id]
 
-    if debug: print("DBG::\t\tScaling %d bytes of sensor data with scalar %.10f)"%(count, scalar))
+    if debug: print("DBG::\t\tScaling %d bytes of sensor data with scalar %.10f)"%(count*2, scalar))
     results = []
 
     for _offset_idx in range(count):
@@ -168,7 +168,6 @@ def _parse_sensor_report_data(report_bytes):
         results.append(scaled_data)
 
     return tuple(results)
-
 
 def parse_sensor_id(buffer):
     """Parse the fields of a product id report"""
@@ -182,18 +181,6 @@ def parse_sensor_id(buffer):
     sw_build_number = unpack_from("<I", buffer, offset=8)[0]
 
     return (sw_part_number, sw_major, sw_minor, sw_patch, sw_build_number)
-
-def _parse_control_report(report_bytes):
-    if report_bytes[0] == _SHTP_REPORT_PRODUCT_ID_RESPONSE:
-        parse_sensor_id(report_bytes)
-
-
-def process_sensor_report(report_bytes):
-    report_id = report_bytes[0]
-    if report_id < 0xF0:
-        return _parse_sensor_report_data(report_bytes)
-
-return _parse_control_report(report_bytes)
 
 def _report_length(report_id):
     if report_id < 0xF0: # it's a sensor report
@@ -373,9 +360,6 @@ class BNO080:
         self._process_available_packets()
         return self._readings[_BNO_REPORT_GYROSCOPE]
 
-    # def _parse_sensor_report(self, packet):
-    #     self._readings[packet.report_id] = _parse_report_data(packet, self._debug)
-
     # # decorator?
     def _process_available_packets(self):
         processed_count = 0
@@ -383,7 +367,12 @@ class BNO080:
             new_packet = self._read_packet()
             self._handle_packet(new_packet)
             processed_count += 1
+            self._dbg("")
             self._dbg("Processesd", processed_count, "packets")
+            self._dbg("")
+            # we'll probably need an exit here for fast sensor rates
+        self._dbg("")
+        self._dbg(" ** DONE! **")
 
     def _wait_for_packet_type(self, channel_number, report_id=None, timeout=5.0):
         if report_id:
@@ -401,6 +390,7 @@ class BNO080:
                         return new_packet
                 else:
                     return new_packet
+            self._dbg("passing packet to handler for de-slicing")
             self._handle_packet(new_packet)
 
         raise RuntimeError("Timed out waiting for a packet on channel", channel_number)
@@ -426,42 +416,26 @@ class BNO080:
         # split out reports first
         _separate_batch(packet, self._packet_slices)
         while len(self._packet_slices) > 0:
-            self._process_report(self._packet_slices.pop())
+            self._process_report(*self._packet_slices.pop())
 
-
-        # TODO: Move into individual handlers
-        # if packet.channel_number == _BNO_CHANNEL_SHTP_COMMAND:
-        #     if packet.header.data_length == 272:
-        #         self._dbg("Got 272 len packet on channel 0")
-        #         self._wait_for_initialize = True
-        #         self._init_complete = False
-        #         self._id_read = False
-
-        # if packet.channel_number == BNO_CHANNEL_EXE:
-        #     if packet.data[0] == 1:
-        #         self._dbg("********** Found reset packet! ************")
-        #         self._init_complete = False
-        #         self._dbg("...sleeping")
-        #         sleep(1)
-        #         self._dbg("reinitializing")
-        #         self.initialize()
-
-        # if packet.channel_number == _BNO_CHANNEL_CONTROL:
-        #     if packet.report_id == _BNO_CMD_COMMAND_RESPONSE:
-        #         self._dbg("Got command response")
-        #         if packet.data[2] == 0x84:
-        #             self._dbg("Got unsolicited init response")
-        #             if self._wait_for_initialize:
-        #                 self._wait_for_initialize = False
-        #                 self._init_complete = True
-
-        #             else:
-        #                 raise RuntimeError(
-        #                     "Unsolicted init received before Advertisement"
-        #                 )
+    def _handle_control_report(self, report_id, report_bytes):
+        if report_id == _SHTP_REPORT_PRODUCT_ID_RESPONSE:
+            sw_part_number, sw_major, sw_minor, sw_patch, sw_build_number = parse_sensor_id(report_bytes)
+            self._dbg("FROM PACKET SLICE:")
+            self._dbg("*** Part Number: %d" % sw_part_number)
+            self._dbg(
+                "*** Software Version: %d.%d.%d" % (sw_major, sw_minor, sw_patch))
+            self._dbg("\tBuild: %d" % (sw_build_number))
+            self._dbg("")
 
     def _process_report(self, report_id, report_bytes):
-        # report handler!
+        if report_id < 0xF0:
+            sensor_data = _parse_sensor_report_data(report_bytes)
+            # TODO: FIXME; Sensor reports are batched in a LIFO which means that multiple reports
+            # for the same type will end with the oldest and throw away the rest
+            self._readings[report_id] = sensor_data
+        else:
+            self._handle_control_report(report_id, report_bytes)
 
     # TODO: Make this a Packet creation
     @staticmethod
@@ -474,7 +448,7 @@ class BNO080:
         return set_feature_report
 
     def _enable_feature(self, feature_id):
-        self._dbg("Enabling feature id:", feature_id)
+        self._dbg("\n********** Enabling feature id:", feature_id, "**********")
 
         set_feature_report = self._get_feature_enable_report(feature_id)
         self._send_packet(_BNO_CHANNEL_CONTROL, set_feature_report)
@@ -496,7 +470,6 @@ class BNO080:
         return False
 
     def _check_id(self):
-
         self._dbg("\n********** READ ID **********")
         if self._id_read:
             return True
@@ -533,8 +506,7 @@ class BNO080:
         self._dbg("")
         self._dbg("*** Part Number: %d" % sw_part_number)
         self._dbg(
-            "*** Software Version: %d.%d.%d" % (sw_major, sw_minor, sw_patch), end=""
-        )
+            "*** Software Version: %d.%d.%d" % (sw_major, sw_minor, sw_patch))
         self._dbg(" Build: %d" % (sw_build_number))
         self._dbg("")
         return sw_part_number
@@ -555,22 +527,6 @@ class BNO080:
         packet_header = Packet.header_from_buffer(self._data_buffer)
         self._dbg(packet_header)
         return packet_header
-
-    # @elapsed_time
-    # def _print_buffer(self, write_full=False):
-    #     if not self._debug:
-    #         return
-    #     header = Packet.header_from_buffer(self._data_buffer)
-    #     length = header.packet_byte_count
-    #     if write_full:
-    #         print(" writing complete buffer")
-    #         length = len(self._data_buffer)
-
-    #     for idx, packet_byte in enumerate(self._data_buffer[:length]):
-    #         if (idx % 4) == 0:
-    #             print("\nDBG::\t\t[%3d] " % idx, end="")
-    #         print("0x{:02X} ".format(packet_byte), end="")
-    #     print("")
 
     # pylint:disable=no-self-use
     @property
