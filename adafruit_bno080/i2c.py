@@ -15,6 +15,7 @@ from . import BNO080, BNO_CHANNEL_EXE, DATA_BUFFER_SIZE, const, Packet
 
 _BNO080_DEFAULT_ADDRESS = const(0x4A)
 
+
 class BNO080_I2C(BNO080):
     """Library for the BNO080 IMU from Hillcrest Laboratories
 
@@ -68,7 +69,7 @@ class BNO080_I2C(BNO080):
     def _read_packet(self):
         # TODO: MAGIC NUMBER?
 
-        sleep(0.001) #
+        sleep(0.001)  #
         # TODO: this can be `_read_header` or know it's done by `_data_ready`
         with self.bus_device_obj as i2c:
             i2c.readinto(self._data_buffer, end=4)  # this is expecting a header?
@@ -83,7 +84,7 @@ class BNO080_I2C(BNO080):
         self._sequence_number[channel_number] = sequence_number
         if packet_byte_count == 0:
             self._dbg("SKIPPING NO PACKETS AVAILABLE IN i2c._read_packet")
-            return False        # remove header size from read length
+            return False  # remove header size from read length
         packet_byte_count -= 4
         self._dbg(
             "channel",
@@ -92,12 +93,13 @@ class BNO080_I2C(BNO080):
             packet_byte_count,
             "bytes available to read",
         )
-        
+
         self._read(packet_byte_count)
 
         # TODO: Allocation
         new_packet = Packet(self._data_buffer)
-        if self._debug: print(new_packet)
+        if self._debug:
+            print(new_packet)
 
         self._update_sequence_number(new_packet)
 
@@ -106,12 +108,14 @@ class BNO080_I2C(BNO080):
     # returns true if all requested data was read
     def _read(self, requested_read_length):
         self._dbg("trying to read", requested_read_length, "bytes")
-        unread_bytes = 0
         # +4 for the header
         total_read_length = requested_read_length + 4
         if total_read_length > DATA_BUFFER_SIZE:
             self._data_buffer = bytearray(total_read_length)
-            self._dbg("!!!!!!!!!!!! ALLOCATION: increased _data_buffer to bytearray(%d) !!!!!!!!!!!!! "%total_read_length)
+            self._dbg(
+                "!!!!!!!!!!!! ALLOCATION: increased _data_buffer to bytearray(%d) !!!!!!!!!!!!! "
+                % total_read_length
+            )
         with self.bus_device_obj as i2c:
             i2c.readinto(self._data_buffer, end=total_read_length)
 

@@ -12,7 +12,7 @@ i2c = board.I2C()
 bno = BNO080(i2c)
 
 quat_svc = QuaternionService()
-quat_svc.measurement_period = 100
+quat_svc.measurement_period = 50
 quat_last_read = 0
 
 ble = BLERadio()

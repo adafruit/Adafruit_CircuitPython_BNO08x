@@ -1,136 +1,64 @@
+# SPDX-FileCopyrightText: Copyright (c) 2020 Bryan Siepert for Adafruit Industries
+#
+# SPDX-License-Identifier: MIT
+"""A collection of dictionaries for better debug messages"""
 # TODO: Remove for size before release
 channels = {
-    0x0 : "SHTP_COMMAND",
-    0x1 : "EXE",
-    0x2 : "CONTROL",
-    0x3 : "INPUT_SENSOR_REPORTS",
-    0x4 : "WAKE_INPUT_SENSOR_REPORTS",
-    0x5 : "GYRO_ROTATION_VECTOR"
+    0x0: "SHTP_COMMAND",
+    0x1: "EXE",
+    0x2: "CONTROL",
+    0x3: "INPUT_SENSOR_REPORTS",
+    0x4: "WAKE_INPUT_SENSOR_REPORTS",
+    0x5: "GYRO_ROTATION_VECTOR",
 }
-#define COMMAND_ERRORS 1
-#define COMMAND_COUNTER 2
-#define COMMAND_TARE 3
-#define COMMAND_INITIALIZE 4
-#define COMMAND_DCD 6
-#define COMMAND_ME_CALIBRATE 7
-#define COMMAND_DCD_PERIOD_SAVE 9
-#define COMMAND_OSCILLATOR 10
-#define COMMAND_CLEAR_DCD 11
-
-#define CALIBRATE_ACCEL 0
-#define CALIBRATE_GYRO 1
-#define CALIBRATE_MAG 2
-#define CALIBRATE_PLANAR_ACCEL 3
-#define CALIBRATE_ACCEL_GYRO_MAG 4
-#define CALIBRATE_STOP 5
-# 2 (SH-2 control)
-# Host to BNO
-
-# 0xFE
-# Get Feature Request
-# 2 (SH-2 control)
-# Host to BNO
-# 0xFD
-# Set Feature Command
-# 2 (SH-2 control)
-# BNO to host
-
-# 0xFC
-
-# Get Feature Response
-# 2 (SH-2 control)
-# Host to BNO
-# 0xF9
-# Product ID Request
-# 2 (SH-2 control)
-# BNO to host
-
-# 0xF8
-# Product ID Response
-# 2 (SH-2 control)
-# Host to BNO
-
-# 0xF7
-# FRS Write Request
-# 2 (SH-2 control)
-# Host to BNO
-
-# 0xF6
-# FRS Write Data
-# 2 (SH-2 control)
-# BNO to Host
-# 0xF5
-
-# FRS Write Response
-# 2 (SH-2 control)
-# Host to BNO
-# 0xF4
-
-# FRS Read Request
-# 2 (SH-2 control)
-# BNO to host
-# 0xF3
-# FRS Read Response
-# 2 (SH-2 control)
-# Host to BNO
-
-# 0xF2
-
-# Command Request
-# 2 (SH-2 control)
-
-# BNO to host
-
-# 0xF1
-
 
 # Command Response
 
 reports = {
-    0xFB : "BASE_TIMESTAMP",
-    0xF2 : "COMMAND_REQUEST",
-    0xF1 : "COMMAND_RESPONSE",
-    0xF4 : "FRS_READ_REQUEST",
-    0xF3 : "FRS_READ_RESPONSE",
-    0xF6 : "FRS_WRITE_DATA",
-    0xF7 : "FRS_WRITE_REQUEST",
-    0xF5 : "FRS_WRITE_RESPONSE",
-    0xFE : "GET_FEATURE_REQUEST",
-    0xFC : "GET_FEATURE_RESPONSE",
-    0xFD : "SET_FEATURE_COMMAND",
-    0xFA : "TIMESTAMP_REBASE",
-    0x01 : "ACCELEROMETER",
-    0x29 : "ARVR_STABILIZED_GAME_ROTATION_VECTOR",
-    0x28 : "ARVR_STABILIZED_ROTATION_VECTOR",
-    0x22 : "CIRCLE_DETECTOR",
-    0x1A : "FLIP_DETECTOR",
-    0x08 : "GAME_ROTATION_VECTOR",
-    0x09 : "GEOMAGNETIC_ROTATION_VECTOR",
-    0x06 : "GRAVITY",
-    0x02 : "GYROSCOPE",
-    0x04 : "LINEAR_ACCELERATION",
-    0x03 : "MAGNETIC_FIELD",
-    0x1E : "PERSONAL_ACTIVITY_CLASSIFIER",
-    0x1B : "PICKUP_DETECTOR",
-    0x21 : "POCKET_DETECTOR",
-    0xF9 : "PRODUCT_ID_REQUEST",
-    0xF8 : "PRODUCT_ID_RESPONSE",
-    0x14 : "RAW_ACCELEROMETER",
-    0x15 : "RAW_GYROSCOPE",
-    0x16 : "RAW_MAGNETOMETER",
-    0x05 : "ROTATION_VECTOR",
-    0x17 : "SAR",
-    0x19 : "SHAKE_DETECTOR",
-    0x12 : "SIGNIFICANT_MOTION",
-    0x1F : "SLEEP_DETECTOR",
-    0x13 : "STABILITY_CLASSIFIER",
-    0x1C : "STABILITY_DETECTOR",
-    0x11 : "STEP_COUNTER",
-    0x18 : "STEP_DETECTOR",
-    0x10 : "TAP_DETECTOR",
-    0x20 : "TILT_DETECTOR",
-    0x07 : "UNCALIBRATED_GYROSCOPE",
-    0x0F : "UNCALIBRATED_MAGNETIC_FIELD"
+    0xFB: "BASE_TIMESTAMP",
+    0xF2: "COMMAND_REQUEST",
+    0xF1: "COMMAND_RESPONSE",
+    0xF4: "FRS_READ_REQUEST",
+    0xF3: "FRS_READ_RESPONSE",
+    0xF6: "FRS_WRITE_DATA",
+    0xF7: "FRS_WRITE_REQUEST",
+    0xF5: "FRS_WRITE_RESPONSE",
+    0xFE: "GET_FEATURE_REQUEST",
+    0xFC: "GET_FEATURE_RESPONSE",
+    0xFD: "SET_FEATURE_COMMAND",
+    0xFA: "TIMESTAMP_REBASE",
+    0x01: "ACCELEROMETER",
+    0x29: "ARVR_STABILIZED_GAME_ROTATION_VECTOR",
+    0x28: "ARVR_STABILIZED_ROTATION_VECTOR",
+    0x22: "CIRCLE_DETECTOR",
+    0x1A: "FLIP_DETECTOR",
+    0x08: "GAME_ROTATION_VECTOR",
+    0x09: "GEOMAGNETIC_ROTATION_VECTOR",
+    0x06: "GRAVITY",
+    0x02: "GYROSCOPE",
+    0x04: "LINEAR_ACCELERATION",
+    0x03: "MAGNETIC_FIELD",
+    0x1E: "PERSONAL_ACTIVITY_CLASSIFIER",
+    0x1B: "PICKUP_DETECTOR",
+    0x21: "POCKET_DETECTOR",
+    0xF9: "PRODUCT_ID_REQUEST",
+    0xF8: "PRODUCT_ID_RESPONSE",
+    0x14: "RAW_ACCELEROMETER",
+    0x15: "RAW_GYROSCOPE",
+    0x16: "RAW_MAGNETOMETER",
+    0x05: "ROTATION_VECTOR",
+    0x17: "SAR",
+    0x19: "SHAKE_DETECTOR",
+    0x12: "SIGNIFICANT_MOTION",
+    0x1F: "SLEEP_DETECTOR",
+    0x13: "STABILITY_CLASSIFIER",
+    0x1C: "STABILITY_DETECTOR",
+    0x11: "STEP_COUNTER",
+    0x18: "STEP_DETECTOR",
+    0x10: "TAP_DETECTOR",
+    0x20: "TILT_DETECTOR",
+    0x07: "UNCALIBRATED_GYROSCOPE",
+    0x0F: "UNCALIBRATED_MAGNETIC_FIELD",
 }
 # # Gravity (m/s2)
 # _BNO_REPORT_GRAVITY = const(0x06) 10 bytes
@@ -140,10 +68,12 @@ reports = {
 # _BNO_REPORT_UNCALIBRATED_GYROSCOPE = const(0x07) 16
 # # Raw uncalibrated gyroscope (ADC units).
 # _BNO_REPORT_RAW_GYROSCOPE = const(0x15) 16
-# # Magnetic field uncalibrated (in µTesla). The magnetic field measurement without hard-iron offset applied,
+# # Magnetic field uncalibrated (in µTesla). The magnetic field measurement
+# without hard-iron offset applied,
 # # the hard-iron estimate is provided as a separate parameter.
 # _BNO_REPORT_UNCALIBRATED_MAGNETIC_FIELD = const(0x0F)
-# # Raw magnetic field measurement (in ADC units). Direct data from the magnetometer. Used for testing.
+# # Raw magnetic field measurement (in ADC units). Direct data from the magnetometer.
+# Used for testing.
 # _BNO_REPORT_RAW_MAGNETOMETER = const(0x16) 16
 # # Geomagnetic Rotation Vector
 # _BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR = const(0x09)
@@ -173,7 +103,6 @@ reports = {
 # _BNO_REPORT_TILT_DETECTOR = const(0x20)
 # _BNO_REPORT_POCKET_DETECTOR = const(0x21)
 # _BNO_REPORT_CIRCLE_DETECTOR = const(0x22)
-
 
 
 # Reset reasons from ID Report reponse:

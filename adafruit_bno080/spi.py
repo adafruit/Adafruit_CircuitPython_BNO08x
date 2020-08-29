@@ -92,11 +92,12 @@ class BNO080_SPI(BNO080):
 
         # TODO: Allocaiton
         new_packet = Packet(self._data_buffer)
-        if self._debug: print(new_packet)
+        if self._debug:
+            print(new_packet)
         self._update_sequence_number(new_packet)
 
         return new_packet
-    
+
     ###### Actually send bytes ##########
     # Note: I _think_ these can be used for either SPI or I2C in the base class by having the
     # subclass  set the 'bus_device_object' to a `bus_device`.SPI` or `bus_device.I2C`
@@ -113,7 +114,6 @@ class BNO080_SPI(BNO080):
 
         with self.bus_device_obj as spi:
             spi.readinto(self._data_buffer, end=total_read_length)
-        self._print_buffer()
         return unread_bytes > 0
 
     def _send_packet(self, channel, data):
@@ -130,15 +130,13 @@ class BNO080_SPI(BNO080):
         self._data_buffer[3] = self._sequence_number[channel]
 
         # this is dumb but it's what we have for now
-        for idx, end_byte in enumerate(data):
+        # TODO: Make this use the buffer from a passed in `Packet`
+        for idx, send_byte in enumerate(data):
             self._data_buffer[4 + idx] = send_byte
-
-        # header = Packet.header_from_buffer(self._data_buffer)
 
         with self.bus_device_obj as spi:
             spi.write(self._data_buffer, end=write_length)
-        self._dbg("Sent:")
-        self._print_buffer()
+
         # TODO: this is wrong; there should be one per channel per direction
         self._sequence_number[channel] = (self._sequence_number[channel] + 1) % 256
 

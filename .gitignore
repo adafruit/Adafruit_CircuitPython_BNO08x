@@ -16,3 +16,4 @@ bundles
 dist
 **/*.egg-info
 .vscode
+*notes*

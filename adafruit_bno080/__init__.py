@@ -72,6 +72,8 @@ _BNO_REPORT_MAGNETIC_FIELD = const(0x03)
 _BNO_REPORT_LINEAR_ACCELERATION = const(0x04)
 # Rotation Vector
 _BNO_REPORT_ROTATION_VECTOR = const(0x05)
+_BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR = const(0x09)
+_BNO_REPORT_STEP_COUNTER = const(0x11)
 
 _DEFAULT_REPORT_INTERVAL = const(50000)  # in microseconds = 50ms
 _QUAT_READ_TIMEOUT = 0.500  # timeout in seconds
@@ -81,7 +83,7 @@ _QUAT_Q_POINT = const(14)
 _BNO_HEADER_LEN = const(4)
 
 _Q_POINT_14_SCALAR = 2 ** (14 * -1)
-# _Q_POINT_12_SCALAR = 2 ** (12 * -1)
+_Q_POINT_12_SCALAR = 2 ** (12 * -1)
 # _Q_POINT_10_SCALAR = 2 ** (10 * -1)
 _Q_POINT_9_SCALAR = 2 ** (9 * -1)
 _Q_POINT_8_SCALAR = 2 ** (8 * -1)
@@ -90,25 +92,28 @@ _Q_POINT_4_SCALAR = 2 ** (4 * -1)
 _GYRO_SCALAR = _Q_POINT_9_SCALAR
 _ACCEL_SCALAR = _Q_POINT_8_SCALAR
 _QUAT_SCALAR = _Q_POINT_14_SCALAR
+_GEO_QUAT_SCALAR = _Q_POINT_12_SCALAR
 _MAG_SCALAR = _Q_POINT_4_SCALAR
 # _QUAT_RADIAN_ACCURACY_SCALAR = _Q_POINT_12_SCALAR
 # _ANGULAR_VELOCITY_SCALAR = _Q_POINT_10_SCALAR
 
 _REPORT_LENGTHS = {
-    _SHTP_REPORT_PRODUCT_ID_RESPONSE : 16,
-    _BNO_CMD_GET_FEATURE_RESPONSE : 17,
-    _BNO_CMD_COMMAND_RESPONSE : 16,
-    _SHTP_REPORT_PRODUCT_ID_RESPONSE : 16,
-    _BNO_CMD_BASE_TIMESTAMP : 5,
-    _BNO_CMD_TIMESTAMP_REBASE : 5
+    _SHTP_REPORT_PRODUCT_ID_RESPONSE: 16,
+    _BNO_CMD_GET_FEATURE_RESPONSE: 17,
+    _BNO_CMD_COMMAND_RESPONSE: 16,
+    _SHTP_REPORT_PRODUCT_ID_RESPONSE: 16,
+    _BNO_CMD_BASE_TIMESTAMP: 5,
+    _BNO_CMD_TIMESTAMP_REBASE: 5,
 }
 # length is probably deterministic, like axes * 2 +4
 _ENABLED_SENSOR_REPORTS = {
-    # _BNO_REPORT_ACCELEROMETER : (_ACCEL_SCALAR, 3, 10),
-    # _BNO_REPORT_GYROSCOPE : (_GYRO_SCALAR, 3, 10),
-    # _BNO_REPORT_MAGNETIC_FIELD : (_MAG_SCALAR, 3, 10),
-    # _BNO_REPORT_LINEAR_ACCELERATION : (_ACCEL_SCALAR, 3, 10),
-    _BNO_REPORT_ROTATION_VECTOR : (_QUAT_SCALAR, 4, 14), # apparently not +2 bytes for accuracy estimate?
+    _BNO_REPORT_ACCELEROMETER: (_Q_POINT_8_SCALAR, 3, 10),
+    _BNO_REPORT_GYROSCOPE: (_Q_POINT_9_SCALAR, 3, 10),
+    _BNO_REPORT_MAGNETIC_FIELD: (_Q_POINT_4_SCALAR, 3, 10),
+    _BNO_REPORT_LINEAR_ACCELERATION: (_Q_POINT_8_SCALAR, 3, 10),
+    _BNO_REPORT_ROTATION_VECTOR: (_Q_POINT_14_SCALAR, 4, 14,),
+    _BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR: (_Q_POINT_12_SCALAR, 4, 14),
+    _BNO_REPORT_STEP_COUNTER: (1, 1, 12),
 }
 
 DATA_BUFFER_SIZE = const(512)  # data buffer size. obviously eats ram
@@ -124,19 +129,6 @@ def _elapsed(start_time):
     return monotonic() - start_time
 
 
-def debug_print(func):
-    """Print the runtime of the decorated function"""
-
-    def wrapper_debug(*args, **kwargs):
-        debug_state = args[0]._debug
-        args[0]._debug = True
-        value = func(*args, **kwargs)
-        args[0]._debug = debug_state
-        print("debugged", func.__name__)
-        return value
-
-    return wrapper_debug
-
 def elapsed_time(func):
     """Print the runtime of the decorated function"""
 
@@ -150,29 +142,39 @@ def elapsed_time(func):
 
     return wrapper_timer
 
+
 def _parse_sensor_report_data(report_bytes):
-    debug=True
-    data_offset = 4 # this may not always be true
-    report_id, sequence_number, status, delay = report_bytes[0:data_offset]
-    print("DBG::\t\t report_id, sequence_number, status, delay", report_id, sequence_number, status, delay)
+    data_offset = 4  # this may not always be true
+    report_id = report_bytes[0]
     scalar, count, _report_length = _ENABLED_SENSOR_REPORTS[report_id]
 
-    if debug: print("DBG::\t\tScaling %d bytes of sensor data with scalar %.10f)"%(count*2, scalar))
     results = []
 
     for _offset_idx in range(count):
         total_offset = data_offset + (_offset_idx * 2)
         raw_data = unpack_from("<h", report_bytes, offset=total_offset)[0]
         scaled_data = raw_data * scalar
-        if debug: print("DBG::\t\t [%d] raw: %d scaled: %.3f"%(_offset_idx, raw_data, scaled_data))
         results.append(scaled_data)
 
     return tuple(results)
 
+
+# 0	Report ID = 0x11
+# 1	Sequence number
+# 2	Status
+# 3	Delay
+# [7:4]	Detect latency
+# [9:8]	Steps
+# 10	Reserved
+# 11	Reserved
+def _parse_step_couter_report(report_bytes):
+    return unpack_from("<h", report_bytes, offset=8)[0]
+
+
 def parse_sensor_id(buffer):
     """Parse the fields of a product id report"""
     if not buffer[0] == _SHTP_REPORT_PRODUCT_ID_RESPONSE:
-        raise AttributeError("Wrong report id for sensor id: %s"%hex(buffer[0]))
+        raise AttributeError("Wrong report id for sensor id: %s" % hex(buffer[0]))
 
     sw_major = unpack_from("<B", buffer, offset=2)[0]
     sw_minor = unpack_from("<B", buffer, offset=3)[0]
@@ -182,11 +184,13 @@ def parse_sensor_id(buffer):
 
     return (sw_part_number, sw_major, sw_minor, sw_patch, sw_build_number)
 
+
 def _report_length(report_id):
-    if report_id < 0xF0: # it's a sensor report
+    if report_id < 0xF0:  # it's a sensor report
         return _ENABLED_SENSOR_REPORTS[report_id][2]
 
     return _REPORT_LENGTHS[report_id]
+
 
 def _separate_batch(packet, report_slices):
     # get first report id, loop up its report length
@@ -203,10 +207,11 @@ def _separate_batch(packet, report_slices):
             raise RuntimeError("Unprocessable Batch bytes", unprocessed_byte_count)
         # we have enough bytes to read
         # add a slice to the list that was passed in
-        report_slice = packet.data[next_byte_index:next_byte_index + required_bytes]
+        report_slice = packet.data[next_byte_index : next_byte_index + required_bytes]
 
         report_slices.append([report_slice[0], report_slice])
         next_byte_index = next_byte_index + required_bytes
+
 
 class Packet:
     """A class representing a Hillcrest LaboratorySensor Hub Transport packet"""
@@ -216,19 +221,27 @@ class Packet:
         data_end_index = self.header.data_length + _BNO_HEADER_LEN
         self.data = packet_bytes[_BNO_HEADER_LEN:data_end_index]
 
-    @elapsed_time
     def __str__(self):
-        from .debug import channels, reports
+        from .debug import channels, reports  # pylint:disable=import-outside-toplevel
 
         length = self.header.packet_byte_count
         outstr = "\n\t\t********** Packet *************\n"
         outstr += "DBG::\t\t HEADER:\n"
 
         outstr += "DBG::\t\t Data Len: %d\n" % (self.header.data_length)
-        outstr += "DBG::\t\t Channel: %s (%d)\n" %(channels[self.channel_number], self.channel_number)
-        if self.channel_number in [_BNO_CHANNEL_CONTROL, _BNO_CHANNEL_INPUT_SENSOR_REPORTS]:
+        outstr += "DBG::\t\t Channel: %s (%d)\n" % (
+            channels[self.channel_number],
+            self.channel_number,
+        )
+        if self.channel_number in [
+            _BNO_CHANNEL_CONTROL,
+            _BNO_CHANNEL_INPUT_SENSOR_REPORTS,
+        ]:
             if self.report_id in reports:
-                outstr += "DBG::\t\t \tReport Type: %s(%d)\n" %( reports[self.report_id], self.report_id)
+                outstr += "DBG::\t\t \tReport Type: %s(%d)\n" % (
+                    reports[self.report_id],
+                    self.report_id,
+                )
             else:
                 outstr += "DBG::\t\t \t** UNKNOWN Report Type **: %s\n" % hex(
                     self.report_id
@@ -239,8 +252,10 @@ class Packet:
                 and len(self.data) >= 6
                 and self.data[5] in reports
             ):
-                outstr += "DBG::\t\t \tSensor Report Type: %s(%d)\n" %( reports[self.data[5]], self.data[5])
-
+                outstr += "DBG::\t\t \tSensor Report Type: %s(%d)\n" % (
+                    reports[self.data[5]],
+                    self.data[5],
+                )
 
         outstr += "DBG::\t\t Sequence number: %s\n" % self.header.sequence_number
         outstr += "\n"
@@ -254,8 +269,6 @@ class Packet:
         outstr += "\n"
         outstr += "\t\t*******************************\n"
 
-        # for _idx, _byte in enumerate(self.data):
-        #     outstr += "\t[%0.2d] %x\n" % (_idx, _byte)
         return outstr
 
     @property
@@ -305,8 +318,8 @@ class BNO080:
         self._dbg("********** __init__ *************")
         self._data_buffer = bytearray(DATA_BUFFER_SIZE)
         self._packet_slices = []
-        # TODO: this is wrong there should be one per channel per direction
 
+        # TODO: this is wrong there should be one per channel per direction
         self._sequence_number = [0, 0, 0, 0, 0, 0]
         # self._sequence_number = {"in": [0, 0, 0, 0, 0, 0], "out": [0, 0, 0, 0, 0, 0]}
         # sef
@@ -328,7 +341,7 @@ class BNO080:
     @property
     def magnetic(self):
         """A tuple of the current magnetic field measurements on the X, Y, and Z axes"""
-        self._process_available_packets() # decorator?
+        self._process_available_packets()  # decorator?
         return self._readings[_BNO_REPORT_MAGNETIC_FIELD]
 
     @property
@@ -336,6 +349,18 @@ class BNO080:
         """A quaternion representing the current rotation vector"""
         self._process_available_packets()
         return self._readings[_BNO_REPORT_ROTATION_VECTOR]
+
+    @property
+    def geomagnetic_quaternion(self):
+        """A quaternion representing the current geomagnetic rotation vector"""
+        self._process_available_packets()
+        return self._readings[_BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR]
+
+    @property
+    def steps(self):
+        """The number of steps detected since the sensor was initialized"""
+        self._process_available_packets()
+        return self._readings[_BNO_REPORT_STEP_COUNTER]
 
     @property
     def linear_acceleration(self):
@@ -404,7 +429,8 @@ class BNO080:
 
     # update the cached sequence number so we know what to increment from
     # TODO: this is wrong there should be one per channel per direction
-    def _update_sequence_number(self, new_packet, is_write=False):
+    # and apparently per report as well
+    def _update_sequence_number(self, new_packet):
         channel = new_packet.channel_number
         seq = new_packet.header.sequence_number
         self._sequence_number[channel] = seq
@@ -418,21 +444,29 @@ class BNO080:
 
     def _handle_control_report(self, report_id, report_bytes):
         if report_id == _SHTP_REPORT_PRODUCT_ID_RESPONSE:
-            sw_part_number, sw_major, sw_minor, sw_patch, sw_build_number = parse_sensor_id(report_bytes)
+            (
+                sw_part_number,
+                sw_major,
+                sw_minor,
+                sw_patch,
+                sw_build_number,
+            ) = parse_sensor_id(report_bytes)
             self._dbg("FROM PACKET SLICE:")
             self._dbg("*** Part Number: %d" % sw_part_number)
-            self._dbg(
-                "*** Software Version: %d.%d.%d" % (sw_major, sw_minor, sw_patch))
+            self._dbg("*** Software Version: %d.%d.%d" % (sw_major, sw_minor, sw_patch))
             self._dbg("\tBuild: %d" % (sw_build_number))
             self._dbg("")
 
     def _process_report(self, report_id, report_bytes):
         if report_id < 0xF0:
+            if report_id == _BNO_REPORT_STEP_COUNTER:
+                self._readings[report_id] = _parse_step_couter_report(report_bytes)
+                return
             sensor_data = _parse_sensor_report_data(report_bytes)
             # TODO: FIXME; Sensor reports are batched in a LIFO which means that multiple reports
-            # for the same type will end with the oldest and throw away the rest
+            # for the same type will end with the oldest/last being kept and the other
+            # newer reports thrown away
             self._readings[report_id] = sensor_data
-            print("READINGS: ", self._readings)
         else:
             self._handle_control_report(report_id, report_bytes)
 
@@ -494,8 +528,7 @@ class BNO080:
     def _parse_sensor_id(self):
         if not self._data_buffer[4] == _SHTP_REPORT_PRODUCT_ID_RESPONSE:
             return None
-        # 0 Report ID = 0xF8
-        # 14 Reserved
+
         sw_major = self._get_data(2, "<B")
         sw_minor = self._get_data(3, "<B")
         sw_patch = self._get_data(12, "<H")
@@ -504,10 +537,10 @@ class BNO080:
 
         self._dbg("")
         self._dbg("*** Part Number: %d" % sw_part_number)
-        self._dbg(
-            "*** Software Version: %d.%d.%d" % (sw_major, sw_minor, sw_patch))
+        self._dbg("*** Software Version: %d.%d.%d" % (sw_major, sw_minor, sw_patch))
         self._dbg(" Build: %d" % (sw_build_number))
         self._dbg("")
+        # TODO: this is only one of the numbers!
         return sw_part_number
 
     def _dbg(self, *args, **kwargs):
