@@ -337,14 +337,12 @@ class BNO080:
         self._process_available_packets()
         return self._readings[_BNO_REPORT_ROTATION_VECTOR]
 
-
     @property
     def linear_acceleration(self):
         """A tuple representing the current linear acceleration values on the X, Y, and Z
         axes in meters per second squared"""
         self._process_available_packets()
         return self._readings[_BNO_REPORT_LINEAR_ACCELERATION]
-
 
     @property
     def acceleration(self):
@@ -434,6 +432,7 @@ class BNO080:
             # TODO: FIXME; Sensor reports are batched in a LIFO which means that multiple reports
             # for the same type will end with the oldest and throw away the rest
             self._readings[report_id] = sensor_data
+            print("READINGS: ", self._readings)
         else:
             self._handle_control_report(report_id, report_bytes)
 
