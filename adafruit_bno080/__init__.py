@@ -32,6 +32,9 @@ from collections import namedtuple
 from time import sleep, monotonic, monotonic_ns
 from micropython import const
 
+# TODO: Remove on release
+from .debug import channels, reports
+
 # TODO: shorten names
 # Channel 0: the SHTP command channel
 _BNO_CHANNEL_SHTP_COMMAND = const(0)
@@ -74,6 +77,8 @@ _BNO_REPORT_LINEAR_ACCELERATION = const(0x04)
 _BNO_REPORT_ROTATION_VECTOR = const(0x05)
 _BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR = const(0x09)
 _BNO_REPORT_STEP_COUNTER = const(0x11)
+_BNO_REPORT_SHAKE_DETECTOR = const(0x19)
+
 
 _DEFAULT_REPORT_INTERVAL = const(50000)  # in microseconds = 50ms
 _QUAT_READ_TIMEOUT = 0.500  # timeout in seconds
@@ -114,6 +119,7 @@ _ENABLED_SENSOR_REPORTS = {
     _BNO_REPORT_ROTATION_VECTOR: (_Q_POINT_14_SCALAR, 4, 14,),
     _BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR: (_Q_POINT_12_SCALAR, 4, 14),
     _BNO_REPORT_STEP_COUNTER: (1, 1, 12),
+    _BNO_REPORT_SHAKE_DETECTOR: (1, 1, 6),
 }
 
 DATA_BUFFER_SIZE = const(512)  # data buffer size. obviously eats ram
@@ -168,7 +174,12 @@ def _parse_sensor_report_data(report_bytes):
 # 10	Reserved
 # 11	Reserved
 def _parse_step_couter_report(report_bytes):
-    return unpack_from("<h", report_bytes, offset=8)[0]
+    return unpack_from("<H", report_bytes, offset=8)[0]
+
+
+def _parse_shake_report(report_bytes):
+    shake_bitfield = unpack_from("<H", report_bytes, offset=4)[0]
+    return (shake_bitfield & 0x111) > 0
 
 
 def parse_sensor_id(buffer):
@@ -222,7 +233,6 @@ class Packet:
         self.data = packet_bytes[_BNO_HEADER_LEN:data_end_index]
 
     def __str__(self):
-        from .debug import channels, reports  # pylint:disable=import-outside-toplevel
 
         length = self.header.packet_byte_count
         outstr = "\n\t\t********** Packet *************\n"
@@ -252,11 +262,20 @@ class Packet:
                 and len(self.data) >= 6
                 and self.data[5] in reports
             ):
-                outstr += "DBG::\t\t \tSensor Report Type: %s(%d)\n" % (
+                outstr += "DBG::\t\t \tSensor Report Type: %s(%s)\n" % (
                     reports[self.data[5]],
-                    self.data[5],
+                    hex(self.data[5]),
                 )
 
+            if (
+                self.report_id == 0xFC
+                and len(self.data) >= 6
+                and self.data[1] in reports
+            ):
+                outstr += "DBG::\t\t \tEnabled Feature: %s(%s)\n" % (
+                    reports[self.data[1]],
+                    hex(self.data[5]),
+                )
         outstr += "DBG::\t\t Sequence number: %s\n" % self.header.sequence_number
         outstr += "\n"
         outstr += "DBG::\t\t Data:"
@@ -383,6 +402,20 @@ class BNO080:
         self._process_available_packets()
         return self._readings[_BNO_REPORT_GYROSCOPE]
 
+    @property
+    def shake(self):
+        """True if a shake was detected on any axis since the last time it was checked
+
+        This property has a "latching" behavior where once a shake is detected, it will stay in a
+        "shaken" state until the value is read. This prevents missing shake events but means that
+        this property is not guaranteed to reflect the shake state at the moment it is read
+        """
+        self._process_available_packets()
+        shake_detected = self._readings[_BNO_REPORT_SHAKE_DETECTOR]
+        # clear on read
+        if shake_detected:
+            self._readings[_BNO_REPORT_SHAKE_DETECTOR] = False
+
     # # decorator?
     def _process_available_packets(self):
         processed_count = 0
@@ -459,9 +492,27 @@ class BNO080:
 
     def _process_report(self, report_id, report_bytes):
         if report_id < 0xF0:
+            self._dbg("\tProcessing report:", reports[report_id])
+            if self._debug:
+                outstr = ""
+                for idx, packet_byte in enumerate(report_bytes):
+                    packet_index = idx
+                    if (packet_index % 4) == 0:
+                        outstr += "\nDBG::\t\t[0x{:02X}] ".format(packet_index)
+                    outstr += "0x{:02X} ".format(packet_byte)
+                print(outstr)
+                self._dbg("")
+
             if report_id == _BNO_REPORT_STEP_COUNTER:
                 self._readings[report_id] = _parse_step_couter_report(report_bytes)
                 return
+            if report_id == _BNO_REPORT_SHAKE_DETECTOR:
+                shake_detected = _parse_shake_report(report_bytes)
+                # shake not previously detected - auto cleared by 'shake' property
+                if not self._readings[_BNO_REPORT_SHAKE_DETECTOR]:
+                    self._readings[_BNO_REPORT_SHAKE_DETECTOR] = shake_detected
+                return
+
             sensor_data = _parse_sensor_report_data(report_bytes)
             # TODO: FIXME; Sensor reports are batched in a LIFO which means that multiple reports
             # for the same type will end with the oldest/last being kept and the other
@@ -472,12 +523,14 @@ class BNO080:
 
     # TODO: Make this a Packet creation
     @staticmethod
-    def _get_feature_enable_report(feature_id):
+    def _get_feature_enable_report(
+        feature_id, report_interval=_DEFAULT_REPORT_INTERVAL
+    ):
         # TODO !!! ALLOCATION !!!
         set_feature_report = bytearray(17)
         set_feature_report[0] = _BNO_CMD_SET_FEATURE_COMMAND
         set_feature_report[1] = feature_id
-        pack_into("<I", set_feature_report, 5, _DEFAULT_REPORT_INTERVAL)
+        pack_into("<I", set_feature_report, 5, report_interval)
         return set_feature_report
 
     def _enable_feature(self, feature_id):

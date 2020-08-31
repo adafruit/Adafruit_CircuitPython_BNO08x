@@ -59,5 +59,8 @@ while True:
     print("")
     print("Steps detected:", bno.steps)
     print("")
+    if bno.shake:
+        print("SHAKE DETECTED!")
+        print("")
 
     sleep(0.5)
