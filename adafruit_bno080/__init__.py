@@ -371,23 +371,33 @@ class BNO080:
             return self._readings[BNO_REPORT_MAGNETIC_FIELD]
         except KeyError:
             raise RuntimeError("No magfield report found, is it enabled?") from None
+
     @property
     def quaternion(self):
         """A quaternion representing the current rotation vector"""
         self._process_available_packets()
-        return self._readings[BNO_REPORT_ROTATION_VECTOR]
+        try:
+            return self._readings[BNO_REPORT_ROTATION_VECTOR]
+        except KeyError:
+            raise RuntimeError("No quaternion report found, is it enabled?") from None
 
     @property
     def geomagnetic_quaternion(self):
         """A quaternion representing the current geomagnetic rotation vector"""
         self._process_available_packets()
-        return self._readings[BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR]
+        try:
+            return self._readings[BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR]
+        except KeyError:
+            raise RuntimeError("No geomag quaternion report found, is it enabled?") from None
 
     @property
     def steps(self):
         """The number of steps detected since the sensor was initialized"""
         self._process_available_packets()
-        return self._readings[BNO_REPORT_STEP_COUNTER]
+        try:
+            return self._readings[BNO_REPORT_STEP_COUNTER]
+        except KeyError:
+            raise RuntimeError("No steps report found, is it enabled?") from None
 
     @property
     def linear_acceleration(self):
@@ -428,10 +438,13 @@ class BNO080:
         this property is not guaranteed to reflect the shake state at the moment it is read
         """
         self._process_available_packets()
-        shake_detected = self._readings[BNO_REPORT_SHAKE_DETECTOR]
-        # clear on read
-        if shake_detected:
-            self._readings[BNO_REPORT_SHAKE_DETECTOR] = False
+        try:
+            shake_detected = self._readings[BNO_REPORT_SHAKE_DETECTOR]
+            # clear on read
+            if shake_detected:
+                self._readings[BNO_REPORT_SHAKE_DETECTOR] = False
+        except KeyError:
+            raise RuntimeError("No shake report found, is it enabled?") from None
 
     # # decorator?
     def _process_available_packets(self):
