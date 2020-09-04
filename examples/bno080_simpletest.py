@@ -1,14 +1,15 @@
 # SPDX-FileCopyrightText: 2020 Bryan Siepert, written for Adafruit Industries
 #
 # SPDX-License-Identifier: Unlicense
-from time import sleep
+import time
 import board
 import busio
 from adafruit_bno080.i2c import BNO080_I2C
-
+from digitalio import DigitalInOut
 
 i2c = busio.I2C(board.SCL, board.SDA)
-bno = BNO080_I2C(i2c)
+reset_pin = DigitalInOut(board.G0)
+bno = BNO080_I2C(i2c, reset=reset_pin)
 
 while True:
 

@@ -23,9 +23,9 @@ class BNO080_I2C(BNO080):
 
     """
 
-    def __init__(self, i2c_bus, address=_BNO080_DEFAULT_ADDRESS, debug=False):
+    def __init__(self, i2c_bus, reset=None, address=_BNO080_DEFAULT_ADDRESS, debug=False):
         self.bus_device_obj = i2c_device.I2CDevice(i2c_bus, address)
-        super().__init__(debug)
+        super().__init__(reset, debug)
 
     def _send_packet(self, channel, data):
         data_length = len(data)
@@ -57,7 +57,7 @@ class BNO080_I2C(BNO080):
         with self.bus_device_obj as i2c:
             i2c.readinto(self._data_buffer, end=4)  # this is expecting a header?
         self._dbg("")
-        self._dbg("READing packet")
+        self._dbg("SHTP READ packet header: ", [hex(x) for x in self._data_buffer[0:4]])
 
         header = Packet.header_from_buffer(self._data_buffer)
         packet_byte_count = header.packet_byte_count
@@ -67,7 +67,7 @@ class BNO080_I2C(BNO080):
         self._sequence_number[channel_number] = sequence_number
         if packet_byte_count == 0:
             self._dbg("SKIPPING NO PACKETS AVAILABLE IN i2c._read_packet")
-            return False  # remove header size from read length
+            return None
         packet_byte_count -= 4
         self._dbg(
             "channel",

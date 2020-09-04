@@ -31,6 +31,7 @@ from struct import unpack_from, pack_into
 from collections import namedtuple
 import time
 from micropython import const
+import digitalio
 
 # TODO: Remove on release
 from .debug import channels, reports
@@ -332,8 +333,9 @@ class BNO080:
 
     """
 
-    def __init__(self, debug=False):
+    def __init__(self, reset=None, debug=False):
         self._debug = debug
+        self._reset = reset
         self._dbg("********** __init__ *************")
         self._data_buffer = bytearray(DATA_BUFFER_SIZE)
         self._packet_slices = []
@@ -351,6 +353,7 @@ class BNO080:
 
     def initialize(self):
         """Initialize the sensor"""
+        self.hard_reset()
         self.soft_reset()
         if not self._check_id():
             raise RuntimeError("Could not read ID")
@@ -619,16 +622,33 @@ class BNO080:
     def _data_ready(self):
         raise RuntimeError("Not implemented")
 
+    def hard_reset(self):
+        """Hardware reset the sensor to an initial unconfigured state"""
+        if not self._reset:
+            return
+        self._reset.direction = digitalio.Direction.OUTPUT
+        self._reset.value = True
+        time.sleep(0.01)
+        self._reset.value = False
+        time.sleep(0.01)
+        self._reset.value = True
+        time.sleep(0.1)
+
     def soft_reset(self):
         """Reset the sensor to an initial unconfigured state"""
         print("Resetting...", end="")
         data = bytearray(1)
         data[0] = 1
         seq = self._send_packet(BNO_CHANNEL_EXE, data)
+        time.sleep(0.1)
         
         for i in range(3):
-            time.sleep(0.5)
-            packet = self._read_packet()
+            while True:  # retry reading packets until ready!
+                packet = self._read_packet()
+                if packet:
+                    break
+                time.sleep(0.1)
+            
             #print(packet)
             if i == 0 and packet.channel_number != _BNO_CHANNEL_SHTP_COMMAND:
                 raise RuntimeError("Expected an SHTP announcement")
