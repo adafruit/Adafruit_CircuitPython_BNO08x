@@ -51,6 +51,8 @@ _BNO_CMD_BASE_TIMESTAMP = const(0xFB)
 
 _BNO_CMD_TIMESTAMP_REBASE = const(0xFA)
 
+_SHTP_REPORT_FRS_READ_RESPONSE = const(0xF3)
+_SHTP_REPORT_FRS_READ_REQUEST = const(0xF4)
 _SHTP_REPORT_PRODUCT_ID_RESPONSE = const(0xF8)
 _SHTP_REPORT_PRODUCT_ID_REQUEST = const(0xF9)
 
@@ -78,7 +80,7 @@ _BNO_REPORT_ROTATION_VECTOR = const(0x05)
 _BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR = const(0x09)
 _BNO_REPORT_STEP_COUNTER = const(0x11)
 _BNO_REPORT_SHAKE_DETECTOR = const(0x19)
-
+# 0x7D7D
 
 _DEFAULT_REPORT_INTERVAL = const(50000)  # in microseconds = 50ms
 _QUAT_READ_TIMEOUT = 0.500  # timeout in seconds
@@ -89,7 +91,6 @@ _BNO_HEADER_LEN = const(4)
 
 _Q_POINT_14_SCALAR = 2 ** (14 * -1)
 _Q_POINT_12_SCALAR = 2 ** (12 * -1)
-# _Q_POINT_10_SCALAR = 2 ** (10 * -1)
 _Q_POINT_9_SCALAR = 2 ** (9 * -1)
 _Q_POINT_8_SCALAR = 2 ** (8 * -1)
 _Q_POINT_4_SCALAR = 2 ** (4 * -1)
@@ -99,9 +100,11 @@ _ACCEL_SCALAR = _Q_POINT_8_SCALAR
 _QUAT_SCALAR = _Q_POINT_14_SCALAR
 _GEO_QUAT_SCALAR = _Q_POINT_12_SCALAR
 _MAG_SCALAR = _Q_POINT_4_SCALAR
+
+_FRS_RECORD_SHAKE = 0x7D7D
 # _QUAT_RADIAN_ACCURACY_SCALAR = _Q_POINT_12_SCALAR
 # _ANGULAR_VELOCITY_SCALAR = _Q_POINT_10_SCALAR
-
+_FRS_RECORD_DATA = {_FRS_RECORD_SHAKE: (5,)}
 _REPORT_LENGTHS = {
     _SHTP_REPORT_PRODUCT_ID_RESPONSE: 16,
     _BNO_CMD_GET_FEATURE_RESPONSE: 17,
@@ -123,6 +126,8 @@ _ENABLED_SENSOR_REPORTS = {
 }
 
 DATA_BUFFER_SIZE = const(512)  # data buffer size. obviously eats ram
+REPORT_BUFFER_SIZE = const(32)
+
 PacketHeader = namedtuple(
     "PacketHeader",
     ["channel_number", "sequence_number", "data_length", "packet_byte_count",],
@@ -178,6 +183,15 @@ def _parse_step_couter_report(report_bytes):
 
 
 def _parse_shake_report(report_bytes):
+    """
+    0 Report ID = 0x19
+    1 Sequence number
+    2 Status
+    3 Delay
+    4 Shake LSB
+    5 Shake MSB
+    """
+
     shake_bitfield = unpack_from("<H", report_bytes, offset=4)[0]
     return (shake_bitfield & 0x111) > 0
 
@@ -222,6 +236,50 @@ def _separate_batch(packet, report_slices):
 
         report_slices.append([report_slice[0], report_slice])
         next_byte_index = next_byte_index + required_bytes
+
+
+def _pack_frs_read_request(record_id, report_buffer, offset=0, block_size=0):
+    """Create a FRS record read request report in the report buffer
+
+    Args:
+        offset ([unsigned 16-bit int]): [The offset in 32-bit words into the record to start reading from ]
+        record_id ([unsigned 16-bit int]): [The ID of the record to read]
+        block_size ([type]): [The number of 32-bit words to read]
+    """
+    # offset, in 32-bit words, from the beginning of the FRS record at which
+    # to begin the read operation. The first word in an FRS record is word 0.
+    # number of 32-bit words to read. If the block size is zero then the entire
+    # record beginning at the read offset is returned
+
+    # 0 Report ID = 0xF4
+    # 1 Reserved
+    # 2 Read Offset LSB
+    # 4 FRS Type LSB
+    # 6 Block Size LSB
+
+    pack_into("<B", report_buffer, 0, _SHTP_REPORT_FRS_READ_REQUEST)
+    pack_into("<H", report_buffer, 2, offset)
+    pack_into("<H", report_buffer, 4, record_id)
+    pack_into("<H", report_buffer, 6, block_size)
+
+
+def _unpack_frs_read_response(report_bytes):
+
+    # 0 Report ID = 0xF3
+    # 1 Data Length (bits 7:4) Status (bits 3:0)
+    # 2 Word Offset LSB
+    # 4 Data0 LSB 4-byte
+    # 8 Data1 LSB 4-byte
+    # 12 FRS Type LSB
+    status_length_raw = unpack_from("<B", report_bytes, offset=1)
+    length = (status_length_raw & 0xF0) >> 4
+    status = status_length_raw & 0x0F
+    word_offset = unpack_from("<H", report_bytes, offset=2)
+    data_0 = unpack_from("<I", report_bytes, offset=4)
+    data_1 = unpack_from("<I", report_bytes, offset=8)
+    frs_type = unpack_from("<H", report_bytes, offset=12)
+
+    return frs_type, length, word_offset, data_0, data_1
 
 
 class Packet:
@@ -336,6 +394,7 @@ class BNO080:
         self._debug = debug
         self._dbg("********** __init__ *************")
         self._data_buffer = bytearray(DATA_BUFFER_SIZE)
+        self._report_buffer = bytearray(REPORT_BUFFER_SIZE)
         self._packet_slices = []
 
         # TODO: this is wrong there should be one per channel per direction
@@ -489,6 +548,12 @@ class BNO080:
             self._dbg("*** Software Version: %d.%d.%d" % (sw_major, sw_minor, sw_patch))
             self._dbg("\tBuild: %d" % (sw_build_number))
             self._dbg("")
+        if report_id == _SHTP_REPORT_FRS_READ_RESPONSE:
+            self._store_frs_report(_unpack_frs_read_response(report_bytes))
+
+    def _store_frs_report(self, rs_type, length, word_offset, data_0, data_1):
+        self._frs_reports[rs_type][word_offset] = data_0
+        self._frs_reports[rs_type][word_offset + 1] = data_1
 
     def _process_report(self, report_id, report_bytes):
         if report_id < 0xF0:
