@@ -6,7 +6,7 @@
     Subclass of `adafruit_bno080.BNO080` to use I2C
 
 """
-from time import sleep
+import time
 from struct import pack_into
 import adafruit_bus_device.i2c_device as i2c_device
 from . import BNO080, BNO_CHANNEL_EXE, DATA_BUFFER_SIZE, const, Packet
@@ -27,24 +27,6 @@ class BNO080_I2C(BNO080):
         self.bus_device_obj = i2c_device.I2CDevice(i2c_bus, address)
         super().__init__(debug)
 
-    def reset(self):
-        """Reset the sensor to an initial unconfigured state"""
-        # TODO: Update to use _wait_for_packet_type?
-        data = bytearray(1)
-        data[0] = 1
-        self._send_packet(BNO_CHANNEL_EXE, data)
-        sleep(0.050)
-
-        sleep(1)
-        data_read = True
-        while data_read:
-            data_read = self._read_packet()  # pylint:disable=assignment-from-no-return
-
-        sleep(0.050)
-        data_read = True
-        while data_read:
-            data_read = self._read_packet()  # pylint:disable=assignment-from-no-return
-
     def _send_packet(self, channel, data):
         data_length = len(data)
         write_length = data_length + 4
@@ -62,6 +44,7 @@ class BNO080_I2C(BNO080):
             i2c.write(self._data_buffer, end=write_length)
 
         self._sequence_number[channel] = (self._sequence_number[channel] + 1) % 256
+        return self._sequence_number[channel]
 
     # returns true if available data was read
     # the sensor will always tell us how much there is, so no need to track it ourselves
@@ -69,7 +52,7 @@ class BNO080_I2C(BNO080):
     def _read_packet(self):
         # TODO: MAGIC NUMBER?
 
-        sleep(0.001)  #
+        time.sleep(0.001)  #
         # TODO: this can be `_read_header` or know it's done by `_data_ready`
         with self.bus_device_obj as i2c:
             i2c.readinto(self._data_buffer, end=4)  # this is expecting a header?

@@ -29,7 +29,7 @@ __repo__ = "https:# github.com/adafruit/Adafruit_CircuitPython_BNO080.git"
 
 from struct import unpack_from, pack_into
 from collections import namedtuple
-from time import sleep, monotonic, monotonic_ns
+import time
 from micropython import const
 
 # TODO: Remove on release
@@ -132,16 +132,16 @@ REPORT_STATUS = ["Unreliable", "Accuracy low", "Accuracy medium", "Accuracy high
 
 
 def _elapsed(start_time):
-    return monotonic() - start_time
+    return time.monotonic() - start_time
 
 
 def elapsed_time(func):
     """Print the runtime of the decorated function"""
 
     def wrapper_timer(*args, **kwargs):
-        start_time = monotonic_ns()  # 1
+        start_time = time.monotonic_ns()  # 1
         value = func(*args, **kwargs)
-        end_time = monotonic_ns()  # 2
+        end_time = time.monotonic_ns()  # 2
         run_time = end_time - start_time  # 3
         print("Finished", func.__name__, "in", (run_time / 1000000.0), "ms")
         return value
@@ -248,7 +248,7 @@ class Packet:
             _BNO_CHANNEL_INPUT_SENSOR_REPORTS,
         ]:
             if self.report_id in reports:
-                outstr += "DBG::\t\t \tReport Type: %s(%d)\n" % (
+                outstr += "DBG::\t\t \tReport Type: %s (0x%x)\n" % (
                     reports[self.report_id],
                     self.report_id,
                 )
@@ -351,11 +351,12 @@ class BNO080:
 
     def initialize(self):
         """Initialize the sensor"""
-        self.reset()
+        self.soft_reset()
         if not self._check_id():
             raise RuntimeError("Could not read ID")
         for report_type in _ENABLED_SENSOR_REPORTS:
             self._enable_feature(report_type)
+            time.sleep(0.1)
 
     @property
     def magnetic(self):
@@ -436,7 +437,7 @@ class BNO080:
         else:
             report_id_str = ""
         self._dbg("** Waiting for packet on channel", channel_number, report_id_str)
-        start_time = monotonic()
+        start_time = time.monotonic()
         while _elapsed(start_time) < timeout:
             new_packet = self._wait_for_packet()
 
@@ -452,7 +453,7 @@ class BNO080:
         raise RuntimeError("Timed out waiting for a packet on channel", channel_number)
 
     def _wait_for_packet(self, timeout=_PACKET_READ_TIMEOUT):
-        start_time = monotonic()
+        start_time = time.monotonic()
         while _elapsed(start_time) < timeout:
             if not self._data_ready:
                 continue
@@ -618,9 +619,25 @@ class BNO080:
     def _data_ready(self):
         raise RuntimeError("Not implemented")
 
-    def reset(self):
+    def soft_reset(self):
         """Reset the sensor to an initial unconfigured state"""
-        raise RuntimeError("Not implemented")
+        print("Resetting...", end="")
+        data = bytearray(1)
+        data[0] = 1
+        seq = self._send_packet(BNO_CHANNEL_EXE, data)
+        
+        for i in range(3):
+            time.sleep(0.5)
+            packet = self._read_packet()
+            #print(packet)
+            if i == 0 and packet.channel_number != _BNO_CHANNEL_SHTP_COMMAND:
+                raise RuntimeError("Expected an SHTP announcement")
+            if i == 1 and packet.channel_number != BNO_CHANNEL_EXE:
+                raise RuntimeError("Expected a reset reply")
+            if i == 2 and packet.channel_number != _BNO_CHANNEL_CONTROL:
+                raise RuntimeError("Expected a control announcement")
+        print("OK!");
+        # all is good!
 
     def _send_packet(self, channel, data):
         raise RuntimeError("Not implemented")
