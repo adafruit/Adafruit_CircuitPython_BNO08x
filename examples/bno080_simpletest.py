@@ -4,21 +4,27 @@
 import time
 import board
 import busio
+import adafruit_bno080
 from adafruit_bno080.i2c import BNO080_I2C
 from digitalio import DigitalInOut
 
-i2c = busio.I2C(board.SCL, board.SDA)
+i2c = busio.I2C(board.SCL, board.SDA, frequency=400000)
 reset_pin = DigitalInOut(board.G0)
 bno = BNO080_I2C(i2c, reset=reset_pin)
 
+bno.enable_feature(adafruit_bno080.BNO_REPORT_ACCELEROMETER)
+#bno.enable_feature(adafruit_bno080.BNO_REPORT_GYROSCOPE)
+#bno.enable_feature(adafruit_bno080.BNO_REPORT_MAGNETIC_FIELD)
+
 while True:
 
-    # print("Acceleration:")
+    print("Acceleration:")
     accel_x, accel_y, accel_z = bno.acceleration  # pylint:disable=no-member
     print("X: %0.6f  Y: %0.6f Z: %0.6f  m/s^2" % (accel_x, accel_y, accel_z))
     print("")
 
-    # print("Gyro:")
+    """
+    print("Gyro:")
     gyro_x, gyro_y, gyro_z = bno.gyro  # pylint:disable=no-member
     print("X: %0.6f  Y: %0.6f Z: %0.6f rads/s" % (gyro_x, gyro_y, gyro_z))
     print("")
@@ -65,3 +71,4 @@ while True:
         print("")
 
     sleep(0.5)
+    """

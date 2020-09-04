@@ -67,18 +67,18 @@ _BNO_CMD_COMMAND_RESPONSE = const(0xF1)
 
 
 # Calibrated Acceleration (m/s2)
-_BNO_REPORT_ACCELEROMETER = const(0x01)
+BNO_REPORT_ACCELEROMETER = const(0x01)
 # Calibrated gyroscope (rad/s).
-_BNO_REPORT_GYROSCOPE = const(0x02)
+BNO_REPORT_GYROSCOPE = const(0x02)
 # Magnetic field calibrated (in µTesla). The fully calibrated magnetic field measurement.
-_BNO_REPORT_MAGNETIC_FIELD = const(0x03)
+BNO_REPORT_MAGNETIC_FIELD = const(0x03)
 # Linear acceleration (m/s2). Acceleration of the device with gravity removed
-_BNO_REPORT_LINEAR_ACCELERATION = const(0x04)
+BNO_REPORT_LINEAR_ACCELERATION = const(0x04)
 # Rotation Vector
-_BNO_REPORT_ROTATION_VECTOR = const(0x05)
-_BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR = const(0x09)
-_BNO_REPORT_STEP_COUNTER = const(0x11)
-_BNO_REPORT_SHAKE_DETECTOR = const(0x19)
+BNO_REPORT_ROTATION_VECTOR = const(0x05)
+BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR = const(0x09)
+BNO_REPORT_STEP_COUNTER = const(0x11)
+BNO_REPORT_SHAKE_DETECTOR = const(0x19)
 
 
 _DEFAULT_REPORT_INTERVAL = const(50000)  # in microseconds = 50ms
@@ -112,15 +112,15 @@ _REPORT_LENGTHS = {
     _BNO_CMD_TIMESTAMP_REBASE: 5,
 }
 # length is probably deterministic, like axes * 2 +4
-_ENABLED_SENSOR_REPORTS = {
-    _BNO_REPORT_ACCELEROMETER: (_Q_POINT_8_SCALAR, 3, 10),
-    _BNO_REPORT_GYROSCOPE: (_Q_POINT_9_SCALAR, 3, 10),
-    _BNO_REPORT_MAGNETIC_FIELD: (_Q_POINT_4_SCALAR, 3, 10),
-    _BNO_REPORT_LINEAR_ACCELERATION: (_Q_POINT_8_SCALAR, 3, 10),
-    _BNO_REPORT_ROTATION_VECTOR: (_Q_POINT_14_SCALAR, 4, 14,),
-    _BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR: (_Q_POINT_12_SCALAR, 4, 14),
-    _BNO_REPORT_STEP_COUNTER: (1, 1, 12),
-    _BNO_REPORT_SHAKE_DETECTOR: (1, 1, 6),
+_AVAIL_SENSOR_REPORTS = {
+    BNO_REPORT_ACCELEROMETER: (_Q_POINT_8_SCALAR, 3, 10),
+    BNO_REPORT_GYROSCOPE: (_Q_POINT_9_SCALAR, 3, 10),
+    BNO_REPORT_MAGNETIC_FIELD: (_Q_POINT_4_SCALAR, 3, 10),
+    BNO_REPORT_LINEAR_ACCELERATION: (_Q_POINT_8_SCALAR, 3, 10),
+    BNO_REPORT_ROTATION_VECTOR: (_Q_POINT_14_SCALAR, 4, 14,),
+    BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR: (_Q_POINT_12_SCALAR, 4, 14),
+    BNO_REPORT_STEP_COUNTER: (1, 1, 12),
+    BNO_REPORT_SHAKE_DETECTOR: (1, 1, 6),
 }
 
 DATA_BUFFER_SIZE = const(512)  # data buffer size. obviously eats ram
@@ -158,7 +158,7 @@ def elapsed_time(func):
 def _parse_sensor_report_data(report_bytes):
     data_offset = 4  # this may not always be true
     report_id = report_bytes[0]
-    scalar, count, _report_length = _ENABLED_SENSOR_REPORTS[report_id]
+    scalar, count, _report_length = _AVAIL_SENSOR_REPORTS[report_id]
 
     results = []
 
@@ -204,7 +204,7 @@ def parse_sensor_id(buffer):
 
 def _report_length(report_id):
     if report_id < 0xF0:  # it's a sensor report
-        return _ENABLED_SENSOR_REPORTS[report_id][2]
+        return _AVAIL_SENSOR_REPORTS[report_id][2]
 
     return _REPORT_LENGTHS[report_id]
 
@@ -362,53 +362,62 @@ class BNO080:
         self.soft_reset()
         if not self._check_id():
             raise RuntimeError("Could not read ID")
-        for report_type in _ENABLED_SENSOR_REPORTS:
-            self._enable_feature(report_type)
 
     @property
     def magnetic(self):
         """A tuple of the current magnetic field measurements on the X, Y, and Z axes"""
         self._process_available_packets()  # decorator?
-        return self._readings[_BNO_REPORT_MAGNETIC_FIELD]
-
+        try:
+            return self._readings[BNO_REPORT_MAGNETIC_FIELD]
+        except KeyError:
+            raise RuntimeError("No magfield report found, is it enabled?") from None
     @property
     def quaternion(self):
         """A quaternion representing the current rotation vector"""
         self._process_available_packets()
-        return self._readings[_BNO_REPORT_ROTATION_VECTOR]
+        return self._readings[BNO_REPORT_ROTATION_VECTOR]
 
     @property
     def geomagnetic_quaternion(self):
         """A quaternion representing the current geomagnetic rotation vector"""
         self._process_available_packets()
-        return self._readings[_BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR]
+        return self._readings[BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR]
 
     @property
     def steps(self):
         """The number of steps detected since the sensor was initialized"""
         self._process_available_packets()
-        return self._readings[_BNO_REPORT_STEP_COUNTER]
+        return self._readings[BNO_REPORT_STEP_COUNTER]
 
     @property
     def linear_acceleration(self):
         """A tuple representing the current linear acceleration values on the X, Y, and Z
         axes in meters per second squared"""
         self._process_available_packets()
-        return self._readings[_BNO_REPORT_LINEAR_ACCELERATION]
+        try:
+            return self._readings[BNO_REPORT_LINEAR_ACCELERATION]
+        except KeyError:
+            raise RuntimeError("No lin. accel report found, is it enabled?") from None
 
     @property
     def acceleration(self):
         """A tuple representing the acceleration measurements on the X, Y, and Z
         axes in meters per second squared"""
         self._process_available_packets()
-        return self._readings[_BNO_REPORT_ACCELEROMETER]
+        try:
+            return self._readings[BNO_REPORT_ACCELEROMETER]
+        except KeyError:
+            raise RuntimeError("No accel report found, is it enabled?") from None
 
     @property
     def gyro(self):
         """A tuple representing Gyro's rotation measurements on the X, Y, and Z
         axes in radians per second"""
         self._process_available_packets()
-        return self._readings[_BNO_REPORT_GYROSCOPE]
+        try:
+            return self._readings[BNO_REPORT_GYROSCOPE]
+        except KeyError:
+            raise RuntimeError("No gyro report found, is it enabled?") from None
 
     @property
     def shake(self):
@@ -419,20 +428,24 @@ class BNO080:
         this property is not guaranteed to reflect the shake state at the moment it is read
         """
         self._process_available_packets()
-        shake_detected = self._readings[_BNO_REPORT_SHAKE_DETECTOR]
+        shake_detected = self._readings[BNO_REPORT_SHAKE_DETECTOR]
         # clear on read
         if shake_detected:
-            self._readings[_BNO_REPORT_SHAKE_DETECTOR] = False
+            self._readings[BNO_REPORT_SHAKE_DETECTOR] = False
 
     # # decorator?
     def _process_available_packets(self):
         processed_count = 0
         while self._data_ready:
-            new_packet = self._read_packet()
+            print("reading a packet")
+            try:
+                new_packet = self._read_packet()
+            except PacketError:
+                continue
             self._handle_packet(new_packet)
             processed_count += 1
             self._dbg("")
-            self._dbg("Processesd", processed_count, "packets")
+            #print("Processed", processed_count, "packets")
             self._dbg("")
             # we'll probably need an exit here for fast sensor rates
         self._dbg("")
@@ -511,14 +524,14 @@ class BNO080:
                 print(outstr)
                 self._dbg("")
 
-            if report_id == _BNO_REPORT_STEP_COUNTER:
+            if report_id == BNO_REPORT_STEP_COUNTER:
                 self._readings[report_id] = _parse_step_couter_report(report_bytes)
                 return
-            if report_id == _BNO_REPORT_SHAKE_DETECTOR:
+            if report_id == BNO_REPORT_SHAKE_DETECTOR:
                 shake_detected = _parse_shake_report(report_bytes)
                 # shake not previously detected - auto cleared by 'shake' property
-                if not self._readings[_BNO_REPORT_SHAKE_DETECTOR]:
-                    self._readings[_BNO_REPORT_SHAKE_DETECTOR] = shake_detected
+                if not self._readings[BNO_REPORT_SHAKE_DETECTOR]:
+                    self._readings[BNO_REPORT_SHAKE_DETECTOR] = shake_detected
                 return
 
             sensor_data = _parse_sensor_report_data(report_bytes)
@@ -541,10 +554,11 @@ class BNO080:
         pack_into("<I", set_feature_report, 5, report_interval)
         return set_feature_report
 
-    def _enable_feature(self, feature_id):
+    def enable_feature(self, feature_id):
         self._dbg("\n********** Enabling feature id:", feature_id, "**********")
 
         set_feature_report = self._get_feature_enable_report(feature_id)
+        print("Enabling", feature_id)
         self._send_packet(_BNO_CHANNEL_CONTROL, set_feature_report)
         while True:
             packet = self._wait_for_packet_type(
@@ -553,15 +567,16 @@ class BNO080:
 
             if packet.data[1] == feature_id:
                 if (
-                    feature_id == _BNO_REPORT_ROTATION_VECTOR
+                    feature_id == BNO_REPORT_ROTATION_VECTOR
                 ):  # check for other vector types as well
                     self._readings[feature_id] = (0.0, 0.0, 0.0, 0.0)
                 else:
                     self._readings[feature_id] = (0.0, 0.0, 0.0)
-                self._dbg("Enabled")
-                return True
+                print("Enabled", feature_id)
+                break
+            else:
+                raise RuntimeError("Was not able to enable feature", feature_id)
 
-        return False
 
     def _check_id(self):
         self._dbg("\n********** READ ID **********")
@@ -613,13 +628,6 @@ class BNO080:
         data_index = index + 4
         return unpack_from(fmt_string, self._data_buffer, offset=data_index)[0]
 
-    def _read_header(self):
-        """Reads the first 4 bytes available as a header"""
-        with self.bus_device_obj as bus_dev:  # pylint:disable=no-member
-            bus_dev.readinto(self._data_buffer, end=4)
-        packet_header = Packet.header_from_buffer(self._data_buffer)
-        self._dbg(packet_header)
-        return packet_header
 
     # pylint:disable=no-self-use
     @property
