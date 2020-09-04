@@ -6,10 +6,10 @@
     Subclass of `adafruit_bno080.BNO080` to use I2C
 
 """
-from time import sleep
+import time
 from struct import pack_into
 import adafruit_bus_device.i2c_device as i2c_device
-from . import BNO080, BNO_CHANNEL_EXE, DATA_BUFFER_SIZE, const, Packet
+from . import BNO080, BNO_CHANNEL_EXE, DATA_BUFFER_SIZE, const, Packet, PacketError
 
 # should be removeable; I _think_ something else should be able to prep the buffers?
 
@@ -23,27 +23,9 @@ class BNO080_I2C(BNO080):
 
     """
 
-    def __init__(self, i2c_bus, address=_BNO080_DEFAULT_ADDRESS, debug=False):
+    def __init__(self, i2c_bus, reset=None, address=_BNO080_DEFAULT_ADDRESS, debug=False):
         self.bus_device_obj = i2c_device.I2CDevice(i2c_bus, address)
-        super().__init__(debug)
-
-    def reset(self):
-        """Reset the sensor to an initial unconfigured state"""
-        # TODO: Update to use _wait_for_packet_type?
-        data = bytearray(1)
-        data[0] = 1
-        self._send_packet(BNO_CHANNEL_EXE, data)
-        sleep(0.050)
-
-        sleep(1)
-        data_read = True
-        while data_read:
-            data_read = self._read_packet()  # pylint:disable=assignment-from-no-return
-
-        sleep(0.050)
-        data_read = True
-        while data_read:
-            data_read = self._read_packet()  # pylint:disable=assignment-from-no-return
+        super().__init__(reset, debug)
 
     def _send_packet(self, channel, data):
         data_length = len(data)
@@ -62,19 +44,26 @@ class BNO080_I2C(BNO080):
             i2c.write(self._data_buffer, end=write_length)
 
         self._sequence_number[channel] = (self._sequence_number[channel] + 1) % 256
+        return self._sequence_number[channel]
 
     # returns true if available data was read
     # the sensor will always tell us how much there is, so no need to track it ourselves
 
+    def _read_header(self):
+        """Reads the first 4 bytes available as a header"""
+        with self.bus_device_obj as i2c:
+            i2c.readinto(self._data_buffer, end=4)  # this is expecting a header
+        packet_header = Packet.header_from_buffer(self._data_buffer)
+        self._dbg(packet_header)
+        return packet_header
+
     def _read_packet(self):
         # TODO: MAGIC NUMBER?
-
-        sleep(0.001)  #
         # TODO: this can be `_read_header` or know it's done by `_data_ready`
         with self.bus_device_obj as i2c:
             i2c.readinto(self._data_buffer, end=4)  # this is expecting a header?
         self._dbg("")
-        self._dbg("READing packet")
+        #print("SHTP READ packet header: ", [hex(x) for x in self._data_buffer[0:4]])
 
         header = Packet.header_from_buffer(self._data_buffer)
         packet_byte_count = header.packet_byte_count
@@ -84,7 +73,7 @@ class BNO080_I2C(BNO080):
         self._sequence_number[channel_number] = sequence_number
         if packet_byte_count == 0:
             self._dbg("SKIPPING NO PACKETS AVAILABLE IN i2c._read_packet")
-            return False  # remove header size from read length
+            raise PacketError("No packet available")
         packet_byte_count -= 4
         self._dbg(
             "channel",
@@ -122,6 +111,7 @@ class BNO080_I2C(BNO080):
     @property
     def _data_ready(self):
         header = self._read_header()
+
         if header.channel_number > 5:
             self._dbg("channel number out of range:", header.channel_number)
         #  data_length, packet_byte_count)
