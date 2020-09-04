@@ -132,6 +132,11 @@ PacketHeader = namedtuple(
 REPORT_STATUS = ["Unreliable", "Accuracy low", "Accuracy medium", "Accuracy high"]
 
 
+class PacketError(Exception):
+    """Raised when the packet couldnt be parsed"""
+    pass
+
+
 def _elapsed(start_time):
     return time.monotonic() - start_time
 
@@ -359,7 +364,6 @@ class BNO080:
             raise RuntimeError("Could not read ID")
         for report_type in _ENABLED_SENSOR_REPORTS:
             self._enable_feature(report_type)
-            time.sleep(0.1)
 
     @property
     def magnetic(self):
@@ -644,10 +648,11 @@ class BNO080:
         
         for i in range(3):
             while True:  # retry reading packets until ready!
-                packet = self._read_packet()
-                if packet:
+                try:
+                    packet = self._read_packet()
                     break
-                time.sleep(0.1)
+                except PacketError:
+                    time.sleep(0.1)
             
             #print(packet)
             if i == 0 and packet.channel_number != _BNO_CHANNEL_SHTP_COMMAND:

@@ -9,7 +9,7 @@
 import time
 from struct import pack_into
 import adafruit_bus_device.i2c_device as i2c_device
-from . import BNO080, BNO_CHANNEL_EXE, DATA_BUFFER_SIZE, const, Packet
+from . import BNO080, BNO_CHANNEL_EXE, DATA_BUFFER_SIZE, const, Packet, PacketError
 
 # should be removeable; I _think_ something else should be able to prep the buffers?
 
@@ -67,7 +67,7 @@ class BNO080_I2C(BNO080):
         self._sequence_number[channel_number] = sequence_number
         if packet_byte_count == 0:
             self._dbg("SKIPPING NO PACKETS AVAILABLE IN i2c._read_packet")
-            return None
+            raise PacketError("No packet available")
         packet_byte_count -= 4
         self._dbg(
             "channel",
