@@ -638,21 +638,22 @@ class BNO080:
         """Hardware reset the sensor to an initial unconfigured state"""
         if not self._reset:
             return
+        #print("Hard resetting...")
         self._reset.direction = digitalio.Direction.OUTPUT
         self._reset.value = True
         time.sleep(0.01)
         self._reset.value = False
         time.sleep(0.01)
         self._reset.value = True
-        time.sleep(0.1)
+        time.sleep(0.5)
 
     def soft_reset(self):
         """Reset the sensor to an initial unconfigured state"""
-        print("Resetting...", end="")
+        print("Soft resetting...", end="")
         data = bytearray(1)
         data[0] = 1
         seq = self._send_packet(BNO_CHANNEL_EXE, data)
-        time.sleep(0.1)
+        time.sleep(0.5)
         
         for i in range(3):
             while True:  # retry reading packets until ready!

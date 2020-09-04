@@ -51,14 +51,8 @@ class BNO080_I2C(BNO080):
 
     def _read_header(self):
         """Reads the first 4 bytes available as a header"""
-        while True:
-            with self.bus_device_obj as i2c:
-                try:
-                    i2c.readinto(self._data_buffer, end=4)  # this is expecting a header
-                    break
-                except RuntimeError:
-                    time.sleep(0.1)
-                    pass
+        with self.bus_device_obj as i2c:
+            i2c.readinto(self._data_buffer, end=4)  # this is expecting a header
         packet_header = Packet.header_from_buffer(self._data_buffer)
         self._dbg(packet_header)
         return packet_header
