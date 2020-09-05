@@ -479,8 +479,9 @@ class BNO080:
                         return new_packet
                 else:
                     return new_packet
-            self._dbg("passing packet to handler for de-slicing")
-            self._handle_packet(new_packet)
+            if new_packet.channel_number not in (BNO_CHANNEL_EXE, _BNO_CHANNEL_SHTP_COMMAND):
+                self._dbg("passing packet to handler for de-slicing")
+                self._handle_packet(new_packet)
 
         raise RuntimeError("Timed out waiting for a packet on channel", channel_number)
 
@@ -502,7 +503,6 @@ class BNO080:
         self._sequence_number[channel] = seq
 
     def _handle_packet(self, packet):
-
         # split out reports first
         _separate_batch(packet, self._packet_slices)
         while len(self._packet_slices) > 0:
@@ -667,22 +667,16 @@ class BNO080:
         data[0] = 1
         seq = self._send_packet(BNO_CHANNEL_EXE, data)
         time.sleep(0.5)
-        
+        seq = self._send_packet(BNO_CHANNEL_EXE, data)
+        time.sleep(0.5)
+
         for i in range(3):
-            while True:  # retry reading packets until ready!
-                try:
-                    packet = self._read_packet()
-                    break
-                except PacketError:
-                    time.sleep(0.1)
-            
-            #print(packet)
-            if i == 0 and (packet.channel_number != _BNO_CHANNEL_SHTP_COMMAND) and (packet.channel_number != _BNO_CHANNEL_WAKE_INPUT_SENSOR_REPORTS):
-                raise RuntimeError("Expected an SHTP announcement")
-            if i == 1 and packet.channel_number != BNO_CHANNEL_EXE:
-                raise RuntimeError("Expected a reset reply")
-            if i == 2 and packet.channel_number != _BNO_CHANNEL_CONTROL:
-                raise RuntimeError("Expected a control announcement")
+            try:
+                packet = self._read_packet()
+            except PacketError:
+                time.sleep(0.5)
+        
+                
         print("OK!");
         # all is good!
 
