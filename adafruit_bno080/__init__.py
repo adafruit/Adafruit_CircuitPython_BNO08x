@@ -449,7 +449,7 @@ class BNO080:
     def _process_available_packets(self):
         processed_count = 0
         while self._data_ready:
-            print("reading a packet")
+            #print("reading a packet")
             try:
                 new_packet = self._read_packet()
             except PacketError:
@@ -542,8 +542,11 @@ class BNO080:
             if report_id == BNO_REPORT_SHAKE_DETECTOR:
                 shake_detected = _parse_shake_report(report_bytes)
                 # shake not previously detected - auto cleared by 'shake' property
-                if not self._readings[BNO_REPORT_SHAKE_DETECTOR]:
-                    self._readings[BNO_REPORT_SHAKE_DETECTOR] = shake_detected
+                try:
+                    if not self._readings[BNO_REPORT_SHAKE_DETECTOR]:
+                        self._readings[BNO_REPORT_SHAKE_DETECTOR] = shake_detected
+                except KeyError:
+                    pass
                 return
 
             sensor_data = _parse_sensor_report_data(report_bytes)
@@ -570,7 +573,7 @@ class BNO080:
         self._dbg("\n********** Enabling feature id:", feature_id, "**********")
 
         set_feature_report = self._get_feature_enable_report(feature_id)
-        print("Enabling", feature_id)
+        #print("Enabling", feature_id)
         self._send_packet(_BNO_CHANNEL_CONTROL, set_feature_report)
         while True:
             packet = self._wait_for_packet_type(
@@ -584,7 +587,7 @@ class BNO080:
                     self._readings[feature_id] = (0.0, 0.0, 0.0, 0.0)
                 else:
                     self._readings[feature_id] = (0.0, 0.0, 0.0)
-                print("Enabled", feature_id)
+                #print("Enabled", feature_id)
                 break
             else:
                 raise RuntimeError("Was not able to enable feature", feature_id)

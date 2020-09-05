@@ -56,7 +56,7 @@ class BNO080_UART(BNO080):
         time.sleep(0.001)
         self._uart.write(b'\x7e') # end byte
 
-        print("Sending", [hex(x) for x in self._data_buffer[0:write_length]])
+        #print("Sending", [hex(x) for x in self._data_buffer[0:write_length]])
         
         self._sequence_number[channel] = (self._sequence_number[channel] + 1) % 256
         return self._sequence_number[channel]
@@ -98,7 +98,7 @@ class BNO080_UART(BNO080):
         # read header
         self._read_into(self._data_buffer, end=4)
 
-        print("SHTP Header:", [hex(x) for x in self._data_buffer[0:4]])
+        #print("SHTP Header:", [hex(x) for x in self._data_buffer[0:4]])
 
     def _read_packet(self):
         self._read_header()
@@ -153,13 +153,11 @@ class BNO080_UART(BNO080):
             packet = self._read_packet()
             if (packet.channel_number == _BNO_CHANNEL_SHTP_COMMAND):
                 break
-            
-        data = bytearray([0xF9, 0])
-        seq = self._send_packet(_BNO_CHANNEL_CONTROL, data)
+        
+        data = bytearray([1])
+        self._send_packet(BNO_CHANNEL_EXE, data)
         time.sleep(0.5)
-        seq = self._send_packet(_BNO_CHANNEL_CONTROL, data)
+        self._send_packet(BNO_CHANNEL_EXE, data)
         time.sleep(0.5)
-        # read the SHTP announce command packet response
-        self._wait_for_packet_type(_BNO_CHANNEL_CONTROL, 0xF8)
 
         print("OK!") # all is good!
