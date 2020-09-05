@@ -23,6 +23,23 @@ class BNO080_UART(BNO080):
         super().__init__(reset, debug)
 
     def _send_packet(self, channel, data):
+        data_length = len(data)
+        write_length = data_length + 4
+
+        pack_into("<H", self._data_buffer, 0, write_length)
+        self._data_buffer[2] = channel
+        self._data_buffer[3] = self._sequence_number[channel]
+        for idx, send_byte in enumerate(data):
+            self._data_buffer[4 + idx] = send_byte
+            
+        self._uart.write(b'\x7e') # start byte
+        self._uart.write(b'\x01') # SHTP byte
+        self._uart.write(self._data_buffer[0:write_length])
+        self._uart.write(b'\x7e') # end byte
+        
+        self._sequence_number[channel] = (self._sequence_number[channel] + 1) % 256
+        return self._sequence_number[channel]
+    
         return 0
 
     def _read_into(self, buf, num):

@@ -31,7 +31,6 @@ from struct import unpack_from, pack_into
 from collections import namedtuple
 import time
 from micropython import const
-import digitalio
 
 # TODO: Remove on release
 from .debug import channels, reports
@@ -652,6 +651,7 @@ class BNO080:
         if not self._reset:
             return
         #print("Hard resetting...")
+        import digitalio
         self._reset.direction = digitalio.Direction.OUTPUT
         self._reset.value = True
         time.sleep(0.01)
@@ -677,7 +677,7 @@ class BNO080:
                     time.sleep(0.1)
             
             #print(packet)
-            if i == 0 and packet.channel_number != _BNO_CHANNEL_SHTP_COMMAND:
+            if i == 0 and (packet.channel_number != _BNO_CHANNEL_SHTP_COMMAND) and (packet.channel_number != _BNO_CHANNEL_WAKE_INPUT_SENSOR_REPORTS):
                 raise RuntimeError("Expected an SHTP announcement")
             if i == 1 and packet.channel_number != BNO_CHANNEL_EXE:
                 raise RuntimeError("Expected a reset reply")
