@@ -37,7 +37,7 @@ from .debug import channels, reports
 
 # TODO: shorten names
 # Channel 0: the SHTP command channel
-_BNO_CHANNEL_SHTP_COMMAND = const(0)
+BNO_CHANNEL_SHTP_COMMAND = const(0)
 BNO_CHANNEL_EXE = const(1)
 _BNO_CHANNEL_CONTROL = const(2)
 _BNO_CHANNEL_INPUT_SENSOR_REPORTS = const(3)
@@ -479,7 +479,7 @@ class BNO080:
                         return new_packet
                 else:
                     return new_packet
-            if new_packet.channel_number not in (BNO_CHANNEL_EXE, _BNO_CHANNEL_SHTP_COMMAND):
+            if new_packet.channel_number not in (BNO_CHANNEL_EXE, BNO_CHANNEL_SHTP_COMMAND):
                 self._dbg("passing packet to handler for de-slicing")
                 self._handle_packet(new_packet)
 

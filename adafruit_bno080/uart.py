@@ -8,7 +8,7 @@
 """
 import time
 from struct import pack_into
-from . import BNO080, BNO_CHANNEL_EXE, _BNO_CHANNEL_CONTROL, _BNO_CHANNEL_SHTP_COMMAND, DATA_BUFFER_SIZE, const, Packet, PacketError
+from . import BNO080, BNO_CHANNEL_EXE, BNO_CHANNEL_SHTP_COMMAND, DATA_BUFFER_SIZE, const, Packet, PacketError
 
 
 class BNO080_UART(BNO080):
@@ -145,13 +145,13 @@ class BNO080_UART(BNO080):
         print("Soft resetting...", end="")
         
         data = bytearray([0, 1])
-        self._send_packet(_BNO_CHANNEL_SHTP_COMMAND, data)
+        self._send_packet(BNO_CHANNEL_SHTP_COMMAND, data)
         time.sleep(0.5)
         
         # read the SHTP announce command packet response
         while True:
             packet = self._read_packet()
-            if (packet.channel_number == _BNO_CHANNEL_SHTP_COMMAND):
+            if (packet.channel_number == BNO_CHANNEL_SHTP_COMMAND):
                 break
         
         data = bytearray([1])
