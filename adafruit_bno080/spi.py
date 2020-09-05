@@ -37,7 +37,7 @@ class BNO080_SPI(BNO080):
     # """
 
     def __init__(
-        self, spi_bus, cspin, intpin, wakepin, resetpin, baudrate=100000, debug=False
+        self, spi_bus, cspin, intpin, wakepin, resetpin, baudrate=4000000, debug=False
     ):  # pylint:disable=too-many-arguments
         self._spi = spi_device.SPIDevice(
             spi_bus, cspin, baudrate=baudrate, polarity=1, phase=1
@@ -66,22 +66,20 @@ class BNO080_SPI(BNO080):
         self._read_packet()
 
     def _wait_for_int(self):
-        print("Waiting for INT...", end="")
+        #print("Waiting for INT...", end="")
         start_time = time.monotonic()
-        while _elapsed(start_time) < 1.0:
+        while _elapsed(start_time) < 3.0:
             if not self._int.value:
                 break
         else:
             raise RuntimeError("Could not wake up")
-        print("OK")
+        #print("OK")
 
     def soft_reset(self):
         """Reset the sensor to an initial unconfigured state"""
         print("Soft resetting...", end="")
         data = bytearray(1)
         data[0] = 1
-        seq = self._send_packet(BNO_CHANNEL_EXE, data)
-        time.sleep(0.5)
         seq = self._send_packet(BNO_CHANNEL_EXE, data)
         time.sleep(0.5)
 
@@ -98,7 +96,7 @@ class BNO080_SPI(BNO080):
         
         with self._spi as spi:
             spi.readinto(buf, start=start, end=end)
-        print("SPI Read buffer: ", [hex(i) for i in buf[start:end]])
+        #print("SPI Read buffer: ", [hex(i) for i in buf[start:end]])
 
     def _read_header(self):
         """Reads the first 4 bytes available as a header"""
@@ -108,7 +106,7 @@ class BNO080_SPI(BNO080):
         with self._spi as spi:
             spi.readinto(self._data_buffer, end=4)
         self._dbg("")
-        print("SHTP READ packet header: ", [hex(x) for x in self._data_buffer[0:4]])
+        #print("SHTP READ packet header: ", [hex(x) for x in self._data_buffer[0:4]])
 
     def _read_packet(self):
         self._read_header()
@@ -170,6 +168,7 @@ class BNO080_SPI(BNO080):
         self._wait_for_int()
         with self._spi as spi:
             spi.write(self._data_buffer, end=write_length)
+        #print("Sending: ", [hex(x) for x in self._data_buffer[0:write_length]])
         self._sequence_number[channel] = (self._sequence_number[channel] + 1) % 256
         return self._sequence_number[channel]
 

@@ -504,9 +504,13 @@ class BNO080:
 
     def _handle_packet(self, packet):
         # split out reports first
-        _separate_batch(packet, self._packet_slices)
-        while len(self._packet_slices) > 0:
-            self._process_report(*self._packet_slices.pop())
+        try:
+            _separate_batch(packet, self._packet_slices)
+            while len(self._packet_slices) > 0:
+                self._process_report(*self._packet_slices.pop())
+        except Exception as e:
+            print(packet)
+            raise e
 
     def _handle_control_report(self, report_id, report_bytes):
         if report_id == _SHTP_REPORT_PRODUCT_ID_RESPONSE:
@@ -578,7 +582,7 @@ class BNO080:
         while True:
             packet = self._wait_for_packet_type(
                 _BNO_CHANNEL_CONTROL, _BNO_CMD_GET_FEATURE_RESPONSE
-            )
+                )
 
             if packet.data[1] == feature_id:
                 if (
