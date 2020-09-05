@@ -11,10 +11,7 @@ from struct import pack_into
 import adafruit_bus_device.i2c_device as i2c_device
 from . import BNO080, BNO_CHANNEL_EXE, DATA_BUFFER_SIZE, const, Packet, PacketError
 
-# should be removeable; I _think_ something else should be able to prep the buffers?
-
 _BNO080_DEFAULT_ADDRESS = const(0x4A)
-
 
 class BNO080_I2C(BNO080):
     """Library for the BNO080 IMU from Hillcrest Laboratories
@@ -33,10 +30,7 @@ class BNO080_I2C(BNO080):
 
         pack_into("<H", self._data_buffer, 0, write_length)
         self._data_buffer[2] = channel
-
         self._data_buffer[3] = self._sequence_number[channel]
-
-        # this is dumb but it's what we have for now
         for idx, send_byte in enumerate(data):
             self._data_buffer[4 + idx] = send_byte
 
@@ -58,8 +52,6 @@ class BNO080_I2C(BNO080):
         return packet_header
 
     def _read_packet(self):
-        # TODO: MAGIC NUMBER?
-        # TODO: this can be `_read_header` or know it's done by `_data_ready`
         with self.bus_device_obj as i2c:
             i2c.readinto(self._data_buffer, end=4)  # this is expecting a header?
         self._dbg("")
@@ -85,7 +77,6 @@ class BNO080_I2C(BNO080):
 
         self._read(packet_byte_count)
 
-        # TODO: Allocation
         new_packet = Packet(self._data_buffer)
         if self._debug:
             print(new_packet)
@@ -114,7 +105,6 @@ class BNO080_I2C(BNO080):
 
         if header.channel_number > 5:
             self._dbg("channel number out of range:", header.channel_number)
-        #  data_length, packet_byte_count)
         if header.packet_byte_count == 0x7FFF:
             print("Byte count is 0x7FFF/0xFFFF; Error?")
             if header.sequence_number == 0xFF:

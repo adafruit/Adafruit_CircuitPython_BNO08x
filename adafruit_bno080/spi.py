@@ -12,13 +12,7 @@ from struct import pack_into
 import board
 from digitalio import Direction, Pull
 import adafruit_bus_device.spi_device as spi_device
-
 from . import BNO080, BNO_CHANNEL_EXE, DATA_BUFFER_SIZE, _elapsed, const, Packet
-
-# should be removeable; I _think_ something else should be able to prep the buffers?
-
-_BNO080_DEFAULT_ADDRESS = const(0x4A)
-
 
 class BNO080_SPI(BNO080):
     """Instantiate a `adafruit_bno080.BNO080_SPI` instance to communicate with
@@ -136,11 +130,6 @@ class BNO080_SPI(BNO080):
         self._update_sequence_number(new_packet)
         return new_packet
 
-    ###### Actually send bytes ##########
-    # Note: I _think_ these can be used for either SPI or I2C in the base class by having the
-    # subclass  set the 'bus_device_object' to a `bus_device`.SPI` or `bus_device.I2C`
-
-    # returns true if all requested data was read
     def _read(self, requested_read_length):
         self._dbg("trying to read", requested_read_length, "bytes")
         unread_bytes = 0
@@ -158,7 +147,6 @@ class BNO080_SPI(BNO080):
         data_length = len(data)
         write_length = data_length + 4
 
-        # struct.pack_into(fmt, buffer, offset, *values)
         pack_into("<H", self._data_buffer, 0, write_length)
         self._data_buffer[2] = channel
         self._data_buffer[3] = self._sequence_number[channel]
@@ -174,7 +162,6 @@ class BNO080_SPI(BNO080):
 
     @property
     def _data_ready(self):
-        time.sleep(0.1)
         try:
             self._wait_for_int()
             return True
