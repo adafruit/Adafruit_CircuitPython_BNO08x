@@ -73,6 +73,9 @@ while True:
     print("Steps detected:", bno.steps)
     print("")
 
+    print("Stability classification:", bno.stability_classification)
+    print("")
+
     if bno.shake:
         print("SHAKE DETECTED!")
         print("")

@@ -79,6 +79,16 @@ BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR = const(0x09)
 BNO_REPORT_STEP_COUNTER = const(0x11)
 BNO_REPORT_SHAKE_DETECTOR = const(0x19)
 
+BNO_REPORT_STABILITY_CLASSIFIER = const(0x13)
+BNO_REPORT_PERSONAL_ACTIVITY_CLASSIFIER = const(0x1E)
+BNO_REPORT_GYRO_INTEGRATED_ROTATION_VECTOR = const(0x2A)
+# TODOz:
+# Activity Classification
+# Calibrated Acceleration (m/s2)
+# Euler Angles (in degrees?)
+# CALIBRATION
+# TIMESTAMP
+# RAW ACCEL, MAG, GYRO # Sfe says each needs the non-raw enabled to work
 
 _DEFAULT_REPORT_INTERVAL = const(50000)  # in microseconds = 50ms
 _QUAT_READ_TIMEOUT = 0.500  # timeout in seconds
@@ -120,6 +130,7 @@ _AVAIL_SENSOR_REPORTS = {
     BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR: (_Q_POINT_12_SCALAR, 4, 14),
     BNO_REPORT_STEP_COUNTER: (1, 1, 12),
     BNO_REPORT_SHAKE_DETECTOR: (1, 1, 6),
+    BNO_REPORT_STABILITY_CLASSIFIER: (1, 1, 6),
 }
 
 DATA_BUFFER_SIZE = const(512)  # data buffer size. obviously eats ram
@@ -171,16 +182,15 @@ def _parse_sensor_report_data(report_bytes):
     return tuple(results)
 
 
-# 0	Report ID = 0x11
-# 1	Sequence number
-# 2	Status
-# 3	Delay
-# [7:4]	Detect latency
-# [9:8]	Steps
-# 10	Reserved
-# 11	Reserved
 def _parse_step_couter_report(report_bytes):
     return unpack_from("<H", report_bytes, offset=8)[0]
+
+
+def _parse_stability_classifier_report(report_bytes):
+    classification_bitfield = unpack_from("<B", report_bytes, offset=4)[0]
+    return ["Unknown", "On Table", "Stationary", "Stable", "In motion"][
+        classification_bitfield
+    ]
 
 
 def _parse_shake_report(report_bytes):
@@ -445,8 +455,30 @@ class BNO08X:
             # clear on read
             if shake_detected:
                 self._readings[BNO_REPORT_SHAKE_DETECTOR] = False
+            return shake_detected
         except KeyError:
             raise RuntimeError("No shake report found, is it enabled?") from None
+
+    @property
+    def stability_classification(self):
+        """Returns the sensor's assessment of it's current stability, one of:
+        * "Unknown" - The sensor is unable to classify the current stability
+        * "On Table" - The sensor is at rest on a stable surface with very little vibration
+        * "Stationary" -  The sensor’s motion is below the stable threshold but
+            the stable duration requirement has not been met. This output is only available when
+            gyro calibration is enabled
+        * "Stable" - The sensor’s motion has met the stable threshold and duration requirements.
+        * "In motion" - The sensor is moving.
+
+        """
+        self._process_available_packets()
+        try:
+            stability_classification = self._readings[BNO_REPORT_STABILITY_CLASSIFIER]
+            return stability_classification
+        except KeyError:
+            raise RuntimeError(
+                "No stability classification report found, is it enabled?"
+            ) from None
 
     # # decorator?
     def _process_available_packets(self):
@@ -549,6 +581,7 @@ class BNO08X:
             if report_id == BNO_REPORT_STEP_COUNTER:
                 self._readings[report_id] = _parse_step_couter_report(report_bytes)
                 return
+
             if report_id == BNO_REPORT_SHAKE_DETECTOR:
                 shake_detected = _parse_shake_report(report_bytes)
                 # shake not previously detected - auto cleared by 'shake' property
@@ -559,7 +592,16 @@ class BNO08X:
                     pass
                 return
 
+            if report_id == BNO_REPORT_STABILITY_CLASSIFIER:
+                stability_classification = _parse_stability_classifier_report(
+                    report_bytes
+                )
+                self._readings[
+                    BNO_REPORT_STABILITY_CLASSIFIER
+                ] = stability_classification
+                return
             sensor_data = _parse_sensor_report_data(report_bytes)
+
             # TODO: FIXME; Sensor reports are batched in a LIFO which means that multiple reports
             # for the same type will end with the oldest/last being kept and the other
             # newer reports thrown away
