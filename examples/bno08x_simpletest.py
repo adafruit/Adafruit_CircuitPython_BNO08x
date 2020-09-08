@@ -20,6 +20,7 @@ bno.enable_feature(adafruit_bno08x.BNO_REPORT_ROTATION_VECTOR)
 bno.enable_feature(adafruit_bno08x.BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR)
 bno.enable_feature(adafruit_bno08x.BNO_REPORT_STEP_COUNTER)
 bno.enable_feature(adafruit_bno08x.BNO_REPORT_SHAKE_DETECTOR)
+bno.enable_feature(adafruit_bno08x.BNO_REPORT_ACTIVITY_CLASSIFIER)
 
 while True:
     time.sleep(0.1)
@@ -74,6 +75,9 @@ while True:
     print("")
 
     print("Stability classification:", bno.stability_classification)
+    print("")
+
+    print("Activity classification:", bno.activity_classification)
     print("")
 
     if bno.shake:

@@ -80,7 +80,7 @@ BNO_REPORT_STEP_COUNTER = const(0x11)
 BNO_REPORT_SHAKE_DETECTOR = const(0x19)
 
 BNO_REPORT_STABILITY_CLASSIFIER = const(0x13)
-BNO_REPORT_PERSONAL_ACTIVITY_CLASSIFIER = const(0x1E)
+BNO_REPORT_ACTIVITY_CLASSIFIER = const(0x1E)
 BNO_REPORT_GYRO_INTEGRATED_ROTATION_VECTOR = const(0x2A)
 # TODOz:
 # Activity Classification
@@ -131,7 +131,10 @@ _AVAIL_SENSOR_REPORTS = {
     BNO_REPORT_STEP_COUNTER: (1, 1, 12),
     BNO_REPORT_SHAKE_DETECTOR: (1, 1, 6),
     BNO_REPORT_STABILITY_CLASSIFIER: (1, 1, 6),
+    BNO_REPORT_ACTIVITY_CLASSIFIER: (1, 1, 6),
 }
+
+_ENABLED_ACTIVITIES = 0x1FF #All activities; 1 bit set for each of 8 activities, + Unknown
 
 DATA_BUFFER_SIZE = const(512)  # data buffer size. obviously eats ram
 PacketHeader = namedtuple(
@@ -191,6 +194,41 @@ def _parse_stability_classifier_report(report_bytes):
     return ["Unknown", "On Table", "Stationary", "Stable", "In motion"][
         classification_bitfield
     ]
+# 0 Report ID = 0x1E
+# 1 Sequence number
+# 2 Status
+# 3 Delay
+# 4 Page Number + EOS
+# 5 Most likely state
+# 6 Classification (10 x Page Number) confidence
+# 7 Classification (10 x Page Number) + 1 confidence
+# 8 Classification (10 x Page Number) + 2 confidence
+
+# 9 Classification (10 x Page Number) + 3 confidence
+# 10 Classification (10 x Page Number) + 4 confidence
+# 11 Classification (10 x Page Number) + 5 confidence
+
+# 12 Classification (10 x Page Number) + 6 confidence
+# 13 Classification (10 x Page Number) + 7 confidence
+# 14 Classification (10 x Page Number) + 8 confidence
+
+# 15 Classification(10 x Page Number) + 9 confidence
+
+def _parse_activity_classifier_report(report_bytes):
+    # 0 Unknown
+    # 1 In-Vehicle
+    # 2 On-Bicycle
+    # 3 On-Foot
+    # 4 Still
+    # 5 Tilting
+    # 6 Walking
+    # 7 Running
+    # 8 OnStairs
+
+    most_likely_activity = unpack_from("<B", report_bytes, offset=5)[0]
+    activity_confidences = unpack_from("<BBBBBBBBBB", report_bytes, offset = 6)
+
+    return (most_likely_activity, activity_confidences)
 
 
 def _parse_shake_report(report_bytes):
@@ -480,6 +518,29 @@ class BNO08X:
                 "No stability classification report found, is it enabled?"
             ) from None
 
+    @property
+    def activity_classification(self):
+        """Returns the sensor's assessment of the activity that is creating the motions it's sensing, one of:
+        * "Unknown" - The sensor is unable to classify the current activity
+        * "In-Vehicle"
+        * "On-Bicycle"
+        * "On-Foot"
+        * "Still"
+        * "Tilting"
+        * "Walking"
+        * "Running"
+        * "On Stairs"
+
+        """
+        self._process_available_packets()
+        try:
+            activity_classification = self._readings[BNO_REPORT_ACTIVITY_CLASSIFIER]
+            return activity_classification
+        except KeyError:
+            raise RuntimeError(
+                "No activity classification report found, is it enabled?"
+            ) from None
+
     # # decorator?
     def _process_available_packets(self):
         processed_count = 0
@@ -600,6 +661,17 @@ class BNO08X:
                     BNO_REPORT_STABILITY_CLASSIFIER
                 ] = stability_classification
                 return
+
+            if report_id == BNO_REPORT_ACTIVITY_CLASSIFIER:
+                activity_classification = _parse_activity_classifier_report(
+                    report_bytes
+                )
+                self._readings[
+                    BNO_REPORT_ACTIVITY_CLASSIFIER
+                ] = activity_classification
+                return
+
+
             sensor_data = _parse_sensor_report_data(report_bytes)
 
             # TODO: FIXME; Sensor reports are batched in a LIFO which means that multiple reports
@@ -612,13 +684,15 @@ class BNO08X:
     # TODO: Make this a Packet creation
     @staticmethod
     def _get_feature_enable_report(
-        feature_id, report_interval=_DEFAULT_REPORT_INTERVAL
+        feature_id, report_interval=_DEFAULT_REPORT_INTERVAL, sensor_specific_config=0
     ):
         # TODO !!! ALLOCATION !!!
         set_feature_report = bytearray(17)
         set_feature_report[0] = _BNO_CMD_SET_FEATURE_COMMAND
         set_feature_report[1] = feature_id
         pack_into("<I", set_feature_report, 5, report_interval)
+        pack_into("<I", set_feature_report, 13, sensor_specific_config)
+
         return set_feature_report
 
     # TODO: add docs for available features
@@ -626,8 +700,11 @@ class BNO08X:
         """Used to enable a given feature of the BNO08x"""
         self._dbg("\n********** Enabling feature id:", feature_id, "**********")
 
-        set_feature_report = self._get_feature_enable_report(feature_id)
-        # print("Enabling", feature_id)
+        if feature_id == BNO_REPORT_ACTIVITY_CLASSIFIER:
+            set_feature_report = self._get_feature_enable_report(feature_id, sensor_specific_config=_ENABLED_ACTIVITIES)
+        else:
+            set_feature_report = self._get_feature_enable_report(feature_id)
+        print("Enabling", feature_id)
         self._send_packet(_BNO_CHANNEL_CONTROL, set_feature_report)
         while True:
             packet = self._wait_for_packet_type(
