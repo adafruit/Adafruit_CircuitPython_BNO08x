@@ -3,13 +3,13 @@
 # SPDX-License-Identifier: MIT
 """
 
-    Subclass of `adafruit_bno080.BNO080` to use UART
+    Subclass of `adafruit_bno08x.BNO08X` to use UART
 
 """
 import time
 from struct import pack_into
 from . import (
-    BNO080,
+    BNO08X,
     BNO_CHANNEL_EXE,
     BNO_CHANNEL_SHTP_COMMAND,
     DATA_BUFFER_SIZE,
@@ -18,10 +18,10 @@ from . import (
 )
 
 
-class BNO080_UART(BNO080):
-    """Library for the BNO080 IMU from Hillcrest Laboratories
+class BNO08X_UART(BNO08X):
+    """Library for the BNO08x IMUs from Hillcrest Laboratories
 
-        :param uart: The UART devce the BNO080 is connected to.
+        :param uart: The UART devce the BNO08x is connected to.
 
     """
 

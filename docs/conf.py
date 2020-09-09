@@ -42,7 +42,7 @@ source_suffix = ".rst"
 master_doc = "index"
 
 # General information about the project.
-project = "Adafruit BNO080 Library"
+project = "Adafruit BNO08x Library"
 copyright = "2020 Bryan Siepert"
 author = "Bryan Siepert"
 
@@ -145,8 +145,8 @@ latex_elements = {
 latex_documents = [
     (
         master_doc,
-        "AdafruitBNO080Library.tex",
-        "AdafruitBNO080 Library Documentation",
+        "AdafruitBNO08XLibrary.tex",
+        "AdafruitBNO08X Library Documentation",
         author,
         "manual",
     ),
@@ -159,8 +159,8 @@ latex_documents = [
 man_pages = [
     (
         master_doc,
-        "AdafruitBNO080library",
-        "Adafruit BNO080 Library Documentation",
+        "AdafruitBNO08Xlibrary",
+        "Adafruit BNO08x Library Documentation",
         [author],
         1,
     ),
@@ -174,10 +174,10 @@ man_pages = [
 texinfo_documents = [
     (
         master_doc,
-        "AdafruitBNO080Library",
-        "Adafruit BNO080 Library Documentation",
+        "AdafruitBNO08XLibrary",
+        "Adafruit BNO08x Library Documentation",
         author,
-        "AdafruitBNO080Library",
+        "AdafruitBNO08XLibrary",
         "One line description of project.",
         "Miscellaneous",
     ),

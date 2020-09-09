@@ -26,11 +26,11 @@ setup(
     name="adafruit-circuitpython-bno080",
     use_scm_version=True,
     setup_requires=["setuptools_scm"],
-    description="Helper library for the Hillcrest Laboratories BNO080 IMU",
+    description="Helper library for the Hillcrest Laboratories BNO08x IMUs",
     long_description=long_description,
     long_description_content_type="text/x-rst",
     # The project's main homepage.
-    url="https://github.com/adafruit/Adafruit_CircuitPython_BNO080",
+    url="https://github.com/adafruit/Adafruit_CircuitPython_BNO08x",
     # Author details
     author="Adafruit Industries",
     author_email="circuitpython@adafruit.com",
@@ -55,5 +55,5 @@ setup(
     # simple. Or you can use find_packages().
     # TODO: IF LIBRARY FILES ARE A PACKAGE FOLDER,
     #       CHANGE `py_modules=['...']` TO `packages=['...']`
-    py_modules=["adafruit_bno080"],
+    py_modules=["adafruit_bno08x"],
 )

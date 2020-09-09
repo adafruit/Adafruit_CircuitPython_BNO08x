@@ -1,23 +1,23 @@
 Introduction
 ============
 
-.. image:: https://readthedocs.org/projects/adafruit-circuitpython-bno080/badge/?version=latest
-    :target: https://circuitpython.readthedocs.io/projects/bno080/en/latest/
+.. image:: https://readthedocs.org/projects/adafruit-circuitpython-bno08x/badge/?version=latest
+    :target: https://circuitpython.readthedocs.io/projects/bno08x/en/latest/
     :alt: Documentation Status
 
 .. image:: https://img.shields.io/discord/327254708534116352.svg
     :target: https://adafru.it/discord
     :alt: Discord
 
-.. image:: https://github.com/adafruit/Adafruit_CircuitPython_BNO080/workflows/Build%20CI/badge.svg
-    :target: https://github.com/adafruit/Adafruit_CircuitPython_BNO080/actions
+.. image:: https://github.com/adafruit/Adafruit_CircuitPython_BNO08x/workflows/Build%20CI/badge.svg
+    :target: https://github.com/adafruit/Adafruit_CircuitPython_BNO08x/actions
     :alt: Build Status
 
 .. image:: https://img.shields.io/badge/code%20style-black-000000.svg
     :target: https://github.com/psf/black
     :alt: Code Style: Black
 
-Helper library for the Hillcrest Laboratories BNO080 IMU
+Helper library for the Hillcrest Laboratories BNO08x IMUs
 
 
 Dependencies
@@ -63,10 +63,10 @@ Usage Example
 
     import board
     import busio
-    import adafruit_bno080
+    import adafruit_bno08x
 
     i2c = busio.I2C(board.SCL, board.SDA)
-    bno = adafruit_bno080.BNO080(i2c)
+    bno = adafruit_bno08x.BNO08X(i2c)
 
     while True:
         quat = bno.rotation_vector
@@ -77,7 +77,7 @@ Contributing
 ============
 
 Contributions are welcome! Please read our `Code of Conduct
-<https://github.com/adafruit/Adafruit_CircuitPython_BNO080/blob/master/CODE_OF_CONDUCT.md>`_
+<https://github.com/adafruit/Adafruit_CircuitPython_BNO08x/blob/master/CODE_OF_CONDUCT.md>`_
 before contributing to help this project stay welcoming.
 
 Documentation

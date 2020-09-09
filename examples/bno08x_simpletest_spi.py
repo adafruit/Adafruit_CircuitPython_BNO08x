@@ -5,7 +5,7 @@ from time import sleep
 import board
 import busio
 from digitalio import DigitalInOut, Direction
-from adafruit_bno080.spi import BNO080_SPI
+from adafruit_bno08x.spi import BNO08X_SPI
 
 # need to limit clock to 3Mhz
 spi = busio.SPI(board.SCK, MISO=board.MISO, MOSI=board.MOSI)
@@ -22,7 +22,7 @@ wake_pin.direction = Direction.INPUT
 reset_pin = DigitalInOut(board.D9)
 reset_pin.direction = Direction.INPUT
 
-bno = BNO080_SPI(spi, cs, int_pin, wake_pin, reset_pin, debug=True)
+bno = BNO08X_SPI(spi, cs, int_pin, wake_pin, reset_pin, debug=True)
 
 while True:
     print("getting quat")

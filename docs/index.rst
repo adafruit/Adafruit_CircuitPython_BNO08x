@@ -26,13 +26,13 @@ Table of Contents
 .. toctree::
     :caption: Related Products
 
-* `Adafruit BNO080 Breakout <https:www.adafruit.com/products/47XX>`_
+* `Adafruit BNO08x Breakout <https:www.adafruit.com/products/4754>`_
 
 
 .. toctree::
     :caption: Other Links
 
-    Download <https://github.com/adafruit/Adafruit_CircuitPython_BNO080/releases/latest>
+    Download <https://github.com/adafruit/Adafruit_CircuitPython_BNO08x/releases/latest>
     CircuitPython Reference Documentation <https://circuitpython.readthedocs.io>
     CircuitPython Support Forum <https://forums.adafruit.com/viewforum.php?f=60>
     Discord Chat <https://adafru.it/discord>

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 """
 
-    Subclass of `adafruit_bno080.BNO080` to use SPI
+    Subclass of `adafruit_bno08x.BNO08X` to use SPI
 
 """
 import time
@@ -11,22 +11,22 @@ from struct import pack_into
 
 from digitalio import Direction, Pull
 import adafruit_bus_device.spi_device as spi_device
-from . import BNO080, BNO_CHANNEL_EXE, DATA_BUFFER_SIZE, _elapsed, Packet, PacketError
+from . import BNO08X, BNO_CHANNEL_EXE, DATA_BUFFER_SIZE, _elapsed, Packet, PacketError
 
 
-class BNO080_SPI(BNO080):
-    """Instantiate a `adafruit_bno080.BNO080_SPI` instance to communicate with
+class BNO08X_SPI(BNO08X):
+    """Instantiate a `adafruit_bno08x.BNO08X_SPI` instance to communicate with
     the sensor using SPI
 
     Args:
-        spi_bus ([busio.SPI]): The SPI bus to use to communicate with the BNO080
+        spi_bus ([busio.SPI]): The SPI bus to use to communicate with the BNO08x
         cs_pin ([digitalio.DigitalInOut]): The pin object to use for the SPI Chip Select
         debug (bool, optional): Enables print statements used for debugging. Defaults to False.
     """
 
-    # """Library for the BNO080 IMU from Hillcrest Laboratories
+    # """Library for the BNO08x IMUs from Hillcrest Laboratories
 
-    #     :param ~busio.SPI spi_bus: The SPI bus the BNO080 is connected to.
+    #     :param ~busio.SPI spi_bus: The SPI bus the BNO08x is connected to.
 
     # """
 

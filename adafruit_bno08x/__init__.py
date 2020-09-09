@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: MIT
 """
-`adafruit_bno080`
+`adafruit_bno08x`
 ================================================================================
 
-Helper library for the Hillcrest Laboratories BNO080 IMU
+Helper library for the Hillcrest Laboratories BNO08x IMUs
 
 
 * Author(s): Bryan Siepert
@@ -15,7 +15,7 @@ Implementation Notes
 
 **Hardware:**
 
-* `Adafruit BNO080 Breakout <https:www.adafruit.com/products/47XX>`_
+* `Adafruit BNO08x Breakout <https:www.adafruit.com/products/4754>`_
 
 **Software and Dependencies:**
 
@@ -25,7 +25,7 @@ Implementation Notes
 * `Adafruit's Bus Device library <https:# github.com/adafruit/Adafruit_CircuitPython_BusDevice>`_
 """
 __version__ = "0.0.0-auto.0"
-__repo__ = "https:# github.com/adafruit/Adafruit_CircuitPython_BNO080.git"
+__repo__ = "https:# github.com/adafruit/Adafruit_CircuitPython_BNO08x.git"
 
 from struct import unpack_from, pack_into
 from collections import namedtuple
@@ -83,7 +83,7 @@ BNO_REPORT_SHAKE_DETECTOR = const(0x19)
 _DEFAULT_REPORT_INTERVAL = const(50000)  # in microseconds = 50ms
 _QUAT_READ_TIMEOUT = 0.500  # timeout in seconds
 _PACKET_READ_TIMEOUT = 15.000  # timeout in seconds
-_BNO080_CMD_RESET = const(0x01)
+_BNO08X_CMD_RESET = const(0x01)
 _QUAT_Q_POINT = const(14)
 _BNO_HEADER_LEN = const(4)
 
@@ -331,10 +331,10 @@ class Packet:
         return False
 
 
-class BNO080:
-    """Library for the BNO080 IMU from Hillcrest Laboratories
+class BNO08X:
+    """Library for the BNO08x IMUs from Hillcrest Laboratories
 
-        :param ~busio.I2C i2c_bus: The I2C bus the BNO080 is connected to.
+        :param ~busio.I2C i2c_bus: The I2C bus the BNO08x is connected to.
 
     """
 
@@ -581,7 +581,7 @@ class BNO080:
 
     # TODO: add docs for available features
     def enable_feature(self, feature_id):
-        """Used to enable a given feature of the BNO080"""
+        """Used to enable a given feature of the BNO08x"""
         self._dbg("\n********** Enabling feature id:", feature_id, "**********")
 
         set_feature_report = self._get_feature_enable_report(feature_id)

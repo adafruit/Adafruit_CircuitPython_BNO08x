@@ -4,23 +4,22 @@
 import time
 import board
 import busio
-import adafruit_bno080
-from adafruit_bno080.uart import BNO080_UART
+from digitalio import DigitalInOut
+import adafruit_bno08x
+from adafruit_bno08x.i2c import BNO08X_I2C
 
-# import serial
-# uart = serial.Serial("COM49", baudrate=3000000, timeout=1)
-# print(uart.name)
-uart = busio.UART(board.TX, board.RX, baudrate=3000000, receiver_buffer_size=2048)
-bno = BNO080_UART(uart, reset=None, debug=True)
+i2c = busio.I2C(board.SCL, board.SDA, frequency=800000)
+reset_pin = DigitalInOut(board.D5)
+bno = BNO08X_I2C(i2c, reset=reset_pin, debug=False)
 
-bno.enable_feature(adafruit_bno080.BNO_REPORT_ACCELEROMETER)
-bno.enable_feature(adafruit_bno080.BNO_REPORT_GYROSCOPE)
-bno.enable_feature(adafruit_bno080.BNO_REPORT_MAGNETIC_FIELD)
-bno.enable_feature(adafruit_bno080.BNO_REPORT_LINEAR_ACCELERATION)
-bno.enable_feature(adafruit_bno080.BNO_REPORT_ROTATION_VECTOR)
-bno.enable_feature(adafruit_bno080.BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR)
-bno.enable_feature(adafruit_bno080.BNO_REPORT_STEP_COUNTER)
-bno.enable_feature(adafruit_bno080.BNO_REPORT_SHAKE_DETECTOR)
+bno.enable_feature(adafruit_bno08x.BNO_REPORT_ACCELEROMETER)
+bno.enable_feature(adafruit_bno08x.BNO_REPORT_GYROSCOPE)
+bno.enable_feature(adafruit_bno08x.BNO_REPORT_MAGNETIC_FIELD)
+bno.enable_feature(adafruit_bno08x.BNO_REPORT_LINEAR_ACCELERATION)
+bno.enable_feature(adafruit_bno08x.BNO_REPORT_ROTATION_VECTOR)
+bno.enable_feature(adafruit_bno08x.BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR)
+bno.enable_feature(adafruit_bno08x.BNO_REPORT_STEP_COUNTER)
+bno.enable_feature(adafruit_bno08x.BNO_REPORT_SHAKE_DETECTOR)
 
 while True:
     time.sleep(0.1)

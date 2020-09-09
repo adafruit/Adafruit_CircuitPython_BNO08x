@@ -6,10 +6,10 @@ import board
 from adafruit_ble import BLERadio
 from adafruit_ble_adafruit.adafruit_service import AdafruitServerAdvertisement
 from adafruit_ble_adafruit.quaternion_service import QuaternionService
-from adafruit_bno080 import BNO080
+from adafruit_bno08x import BNO08X
 
 i2c = board.I2C()
-bno = BNO080(i2c)
+bno = BNO08X(i2c)
 
 quat_svc = QuaternionService()
 quat_svc.measurement_period = 50
@@ -19,7 +19,7 @@ ble = BLERadio()
 
 # The Web Bluetooth dashboard identifies known boards by their
 # advertised name, not by advertising manufacturer data.
-ble.name = "Adafruit Hillcrest Laboratories BNO080 Breakout"
+ble.name = "Adafruit Hillcrest Laboratories BNO08x Breakout"
 
 adv = AdafruitServerAdvertisement()
 adv.pid = 0x8088

@@ -3,25 +3,25 @@
 # SPDX-License-Identifier: MIT
 """
 
-    Subclass of `adafruit_bno080.BNO080` to use I2C
+    Subclass of `adafruit_bno08x.BNO08X` to use I2C
 
 """
 from struct import pack_into
 import adafruit_bus_device.i2c_device as i2c_device
-from . import BNO080, DATA_BUFFER_SIZE, const, Packet, PacketError
+from . import BNO08X, DATA_BUFFER_SIZE, const, Packet, PacketError
 
-_BNO080_DEFAULT_ADDRESS = const(0x4A)
+_BNO08X_DEFAULT_ADDRESS = const(0x4A)
 
 
-class BNO080_I2C(BNO080):
-    """Library for the BNO080 IMU from Hillcrest Laboratories
+class BNO08X_I2C(BNO08X):
+    """Library for the BNO08x IMUs from Hillcrest Laboratories
 
-        :param ~busio.I2C i2c_bus: The I2C bus the BNO080 is connected to.
+        :param ~busio.I2C i2c_bus: The I2C bus the BNO08x is connected to.
 
     """
 
     def __init__(
-        self, i2c_bus, reset=None, address=_BNO080_DEFAULT_ADDRESS, debug=False
+        self, i2c_bus, reset=None, address=_BNO08X_DEFAULT_ADDRESS, debug=False
     ):
         self.bus_device_obj = i2c_device.I2CDevice(i2c_bus, address)
         super().__init__(reset, debug)
