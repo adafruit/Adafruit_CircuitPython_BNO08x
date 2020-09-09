@@ -133,7 +133,8 @@ REPORT_STATUS = ["Unreliable", "Accuracy low", "Accuracy medium", "Accuracy high
 
 class PacketError(Exception):
     """Raised when the packet couldnt be parsed"""
-    pass
+
+    pass  # pylint:disable=unnecessary-pass
 
 
 def _elapsed(start_time):
@@ -387,7 +388,9 @@ class BNO080:
         try:
             return self._readings[BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR]
         except KeyError:
-            raise RuntimeError("No geomag quaternion report found, is it enabled?") from None
+            raise RuntimeError(
+                "No geomag quaternion report found, is it enabled?"
+            ) from None
 
     @property
     def steps(self):
@@ -449,7 +452,7 @@ class BNO080:
     def _process_available_packets(self):
         processed_count = 0
         while self._data_ready:
-            #print("reading a packet")
+            # print("reading a packet")
             try:
                 new_packet = self._read_packet()
             except PacketError:
@@ -457,7 +460,7 @@ class BNO080:
             self._handle_packet(new_packet)
             processed_count += 1
             self._dbg("")
-            #print("Processed", processed_count, "packets")
+            # print("Processed", processed_count, "packets")
             self._dbg("")
             # we'll probably need an exit here for fast sensor rates
         self._dbg("")
@@ -479,7 +482,10 @@ class BNO080:
                         return new_packet
                 else:
                     return new_packet
-            if new_packet.channel_number not in (BNO_CHANNEL_EXE, BNO_CHANNEL_SHTP_COMMAND):
+            if new_packet.channel_number not in (
+                BNO_CHANNEL_EXE,
+                BNO_CHANNEL_SHTP_COMMAND,
+            ):
                 self._dbg("passing packet to handler for de-slicing")
                 self._handle_packet(new_packet)
 
@@ -508,9 +514,9 @@ class BNO080:
             _separate_batch(packet, self._packet_slices)
             while len(self._packet_slices) > 0:
                 self._process_report(*self._packet_slices.pop())
-        except Exception as e:
+        except Exception as error:
             print(packet)
-            raise e
+            raise error
 
     def _handle_control_report(self, report_id, report_bytes):
         if report_id == _SHTP_REPORT_PRODUCT_ID_RESPONSE:
@@ -573,16 +579,18 @@ class BNO080:
         pack_into("<I", set_feature_report, 5, report_interval)
         return set_feature_report
 
+    # TODO: add docs for available features
     def enable_feature(self, feature_id):
+        """Used to enable a given feature of the BNO080"""
         self._dbg("\n********** Enabling feature id:", feature_id, "**********")
 
         set_feature_report = self._get_feature_enable_report(feature_id)
-        #print("Enabling", feature_id)
+        # print("Enabling", feature_id)
         self._send_packet(_BNO_CHANNEL_CONTROL, set_feature_report)
         while True:
             packet = self._wait_for_packet_type(
                 _BNO_CHANNEL_CONTROL, _BNO_CMD_GET_FEATURE_RESPONSE
-                )
+            )
 
             if packet.data[1] == feature_id:
                 if (
@@ -591,11 +599,9 @@ class BNO080:
                     self._readings[feature_id] = (0.0, 0.0, 0.0, 0.0)
                 else:
                     self._readings[feature_id] = (0.0, 0.0, 0.0)
-                #print("Enabled", feature_id)
+                # print("Enabled", feature_id)
                 break
-            else:
-                raise RuntimeError("Was not able to enable feature", feature_id)
-
+            raise RuntimeError("Was not able to enable feature", feature_id)
 
     def _check_id(self):
         self._dbg("\n********** READ ID **********")
@@ -647,7 +653,6 @@ class BNO080:
         data_index = index + 4
         return unpack_from(fmt_string, self._data_buffer, offset=data_index)[0]
 
-
     # pylint:disable=no-self-use
     @property
     def _data_ready(self):
@@ -657,8 +662,9 @@ class BNO080:
         """Hardware reset the sensor to an initial unconfigured state"""
         if not self._reset:
             return
-        #print("Hard resetting...")
-        import digitalio
+        # print("Hard resetting...")
+        import digitalio  # pylint:disable=import-outside-toplevel
+
         self._reset.direction = digitalio.Direction.OUTPUT
         self._reset.value = True
         time.sleep(0.01)
@@ -672,19 +678,18 @@ class BNO080:
         print("Soft resetting...", end="")
         data = bytearray(1)
         data[0] = 1
-        seq = self._send_packet(BNO_CHANNEL_EXE, data)
+        _seq = self._send_packet(BNO_CHANNEL_EXE, data)
         time.sleep(0.5)
-        seq = self._send_packet(BNO_CHANNEL_EXE, data)
+        _seq = self._send_packet(BNO_CHANNEL_EXE, data)
         time.sleep(0.5)
 
-        for i in range(3):
+        for _i in range(3):
             try:
-                packet = self._read_packet()
+                _packet = self._read_packet()
             except PacketError:
                 time.sleep(0.5)
-        
-                
-        print("OK!");
+
+        print("OK!")
         # all is good!
 
     def _send_packet(self, channel, data):

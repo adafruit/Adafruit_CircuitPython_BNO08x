@@ -6,12 +6,12 @@
     Subclass of `adafruit_bno080.BNO080` to use I2C
 
 """
-import time
 from struct import pack_into
 import adafruit_bus_device.i2c_device as i2c_device
-from . import BNO080, BNO_CHANNEL_EXE, DATA_BUFFER_SIZE, const, Packet, PacketError
+from . import BNO080, DATA_BUFFER_SIZE, const, Packet, PacketError
 
 _BNO080_DEFAULT_ADDRESS = const(0x4A)
+
 
 class BNO080_I2C(BNO080):
     """Library for the BNO080 IMU from Hillcrest Laboratories
@@ -20,7 +20,9 @@ class BNO080_I2C(BNO080):
 
     """
 
-    def __init__(self, i2c_bus, reset=None, address=_BNO080_DEFAULT_ADDRESS, debug=False):
+    def __init__(
+        self, i2c_bus, reset=None, address=_BNO080_DEFAULT_ADDRESS, debug=False
+    ):
         self.bus_device_obj = i2c_device.I2CDevice(i2c_bus, address)
         super().__init__(reset, debug)
 
@@ -55,7 +57,7 @@ class BNO080_I2C(BNO080):
         with self.bus_device_obj as i2c:
             i2c.readinto(self._data_buffer, end=4)  # this is expecting a header?
         self._dbg("")
-        #print("SHTP READ packet header: ", [hex(x) for x in self._data_buffer[0:4]])
+        # print("SHTP READ packet header: ", [hex(x) for x in self._data_buffer[0:4]])
 
         header = Packet.header_from_buffer(self._data_buffer)
         packet_byte_count = header.packet_byte_count

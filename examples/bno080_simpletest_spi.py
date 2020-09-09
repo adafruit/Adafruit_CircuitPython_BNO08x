@@ -13,12 +13,17 @@ spi = busio.SPI(board.SCK, MISO=board.MISO, MOSI=board.MOSI)
 cs = DigitalInOut(board.D5)
 cs.direction = Direction.OUTPUT
 
-
 int_pin = DigitalInOut(board.D6)
 int_pin.direction = Direction.INPUT
 
-bno = BNO080_SPI(spi, cs, int_pin, debug=True)
-print("\n****** INIT COMPLETE *******")
+wake_pin = DigitalInOut(board.D9)
+wake_pin.direction = Direction.INPUT
+
+reset_pin = DigitalInOut(board.D9)
+reset_pin.direction = Direction.INPUT
+
+bno = BNO080_SPI(spi, cs, int_pin, wake_pin, reset_pin, debug=True)
+
 while True:
     print("getting quat")
     quat = bno.quaternion  # pylint:disable=no-member

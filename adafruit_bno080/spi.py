@@ -9,10 +9,10 @@
 import time
 from struct import pack_into
 
-import board
 from digitalio import Direction, Pull
 import adafruit_bus_device.spi_device as spi_device
-from . import BNO080, BNO_CHANNEL_EXE, DATA_BUFFER_SIZE, _elapsed, const, Packet
+from . import BNO080, BNO_CHANNEL_EXE, DATA_BUFFER_SIZE, _elapsed, Packet, PacketError
+
 
 class BNO080_SPI(BNO080):
     """Instantiate a `adafruit_bno080.BNO080_SPI` instance to communicate with
@@ -40,7 +40,6 @@ class BNO080_SPI(BNO080):
         self._wake = wakepin
         super().__init__(resetpin, debug)
 
-
     def hard_reset(self):
         """Hardware reset the sensor to an initial unconfigured state"""
         self._reset.direction = Direction.OUTPUT
@@ -49,8 +48,8 @@ class BNO080_SPI(BNO080):
         self._int.pull = Pull.UP
 
         print("Hard resetting...")
-        self._wake.value = True # set PS0 high (PS1 also must be tied high)
-        self._reset.value = True # perform hardware reset
+        self._wake.value = True  # set PS0 high (PS1 also must be tied high)
+        self._reset.value = True  # perform hardware reset
         time.sleep(0.01)
         self._reset.value = False
         time.sleep(0.01)
@@ -60,37 +59,37 @@ class BNO080_SPI(BNO080):
         self._read_packet()
 
     def _wait_for_int(self):
-        #print("Waiting for INT...", end="")
+        # print("Waiting for INT...", end="")
         start_time = time.monotonic()
         while _elapsed(start_time) < 3.0:
             if not self._int.value:
                 break
         else:
             raise RuntimeError("Could not wake up")
-        #print("OK")
+        # print("OK")
 
     def soft_reset(self):
         """Reset the sensor to an initial unconfigured state"""
         print("Soft resetting...", end="")
         data = bytearray(1)
         data[0] = 1
-        seq = self._send_packet(BNO_CHANNEL_EXE, data)
+        _seq = self._send_packet(BNO_CHANNEL_EXE, data)
         time.sleep(0.5)
 
-        for i in range(3):
+        for _i in range(3):
             try:
-                packet = self._read_packet()
+                _packet = self._read_packet()
             except PacketError:
                 time.sleep(0.5)
-        print("OK!");
+        print("OK!")
         # all is good!
 
     def _read_into(self, buf, start=0, end=None):
         self._wait_for_int()
-        
+
         with self._spi as spi:
             spi.readinto(buf, start=start, end=end)
-        #print("SPI Read buffer: ", [hex(i) for i in buf[start:end]])
+        # print("SPI Read buffer: ", [hex(i) for i in buf[start:end]])
 
     def _read_header(self):
         """Reads the first 4 bytes available as a header"""
@@ -100,12 +99,12 @@ class BNO080_SPI(BNO080):
         with self._spi as spi:
             spi.readinto(self._data_buffer, end=4)
         self._dbg("")
-        #print("SHTP READ packet header: ", [hex(x) for x in self._data_buffer[0:4]])
+        # print("SHTP READ packet header: ", [hex(x) for x in self._data_buffer[0:4]])
 
     def _read_packet(self):
         self._read_header()
-        
-        #print([hex(x) for x in self._data_buffer[0:4]])
+
+        # print([hex(x) for x in self._data_buffer[0:4]])
         header = Packet.header_from_buffer(self._data_buffer)
         packet_byte_count = header.packet_byte_count
         channel_number = header.channel_number
@@ -115,15 +114,18 @@ class BNO080_SPI(BNO080):
         if packet_byte_count == 0:
             raise PacketError("No packet available")
 
-        self._dbg("channel %d has %d bytes available" % (channel_number, packet_byte_count-4))
+        self._dbg(
+            "channel %d has %d bytes available"
+            % (channel_number, packet_byte_count - 4)
+        )
 
         if packet_byte_count > DATA_BUFFER_SIZE:
             self._data_buffer = bytearray(packet_byte_count)
 
         # re-read header bytes since this is going to be a new transaction
         self._read_into(self._data_buffer, start=0, end=packet_byte_count)
-        #print("Packet: ", [hex(i) for i in self._data_buffer[0:packet_byte_count]])
-        
+        # print("Packet: ", [hex(i) for i in self._data_buffer[0:packet_byte_count]])
+
         new_packet = Packet(self._data_buffer)
         if self._debug:
             print(new_packet)
@@ -139,7 +141,7 @@ class BNO080_SPI(BNO080):
             unread_bytes = total_read_length - DATA_BUFFER_SIZE
             total_read_length = DATA_BUFFER_SIZE
 
-        with self.bus_device_obj as spi:
+        with self._spi as spi:
             spi.readinto(self._data_buffer, end=total_read_length)
         return unread_bytes > 0
 
@@ -156,7 +158,7 @@ class BNO080_SPI(BNO080):
         self._wait_for_int()
         with self._spi as spi:
             spi.write(self._data_buffer, end=write_length)
-        #print("Sending: ", [hex(x) for x in self._data_buffer[0:write_length]])
+        # print("Sending: ", [hex(x) for x in self._data_buffer[0:write_length]])
         self._sequence_number[channel] = (self._sequence_number[channel] + 1) % 256
         return self._sequence_number[channel]
 

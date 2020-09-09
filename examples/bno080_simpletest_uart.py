@@ -2,13 +2,15 @@
 #
 # SPDX-License-Identifier: Unlicense
 import time
-import serial
+import board
+import busio
 import adafruit_bno080
 from adafruit_bno080.uart import BNO080_UART
 
-uart = serial.Serial("COM49", baudrate=3000000, timeout=1)
-print(uart.name) 
-#uart = busio.UART(board.TX, board.RX, baudrate=3000000, receiver_buffer_size=2048)
+# import serial
+# uart = serial.Serial("COM49", baudrate=3000000, timeout=1)
+# print(uart.name)
+uart = busio.UART(board.TX, board.RX, baudrate=3000000, receiver_buffer_size=2048)
 bno = BNO080_UART(uart, reset=None, debug=True)
 
 bno.enable_feature(adafruit_bno080.BNO_REPORT_ACCELEROMETER)
@@ -22,7 +24,7 @@ bno.enable_feature(adafruit_bno080.BNO_REPORT_SHAKE_DETECTOR)
 
 while True:
     time.sleep(0.1)
-    
+
     print("Acceleration:")
     accel_x, accel_y, accel_z = bno.acceleration  # pylint:disable=no-member
     print("X: %0.6f  Y: %0.6f Z: %0.6f  m/s^2" % (accel_x, accel_y, accel_z))
