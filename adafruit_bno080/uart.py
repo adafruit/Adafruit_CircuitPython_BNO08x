@@ -42,9 +42,7 @@ class BNO080_UART(BNO080):
         pack_into("<H", self._data_buffer, 0, write_length)
         self._data_buffer[2] = channel
         self._data_buffer[3] = self._sequence_number[channel]
-        for idx, send_byte in enumerate(data):
-            self._data_buffer[4 + idx] = send_byte
-            
+        self._data_buffer[4:4+data_length] = data
         self._uart.write(b'\x7e') # start byte
         time.sleep(0.001)
         self._uart.write(b'\x01') # SHTP byte
