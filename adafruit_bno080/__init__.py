@@ -145,11 +145,11 @@ def elapsed_time(func):
     """Print the runtime of the decorated function"""
 
     def wrapper_timer(*args, **kwargs):
-        start_time = time.monotonic_ns()  # 1
+        start_time = time.monotonic()  # 1
         value = func(*args, **kwargs)
-        end_time = time.monotonic_ns()  # 2
+        end_time = time.monotonic()  # 2
         run_time = end_time - start_time  # 3
-        print("Finished", func.__name__, "in", (run_time / 1000000.0), "ms")
+        print("Finished", func.__name__, "in", (run_time * 1000.0), "ms")
         return value
 
     return wrapper_timer
