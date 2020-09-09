@@ -23,7 +23,7 @@ with open(path.join(here, "README.rst"), encoding="utf-8") as f:
     long_description = f.read()
 
 setup(
-    name="adafruit-circuitpython-bno080",
+    name="adafruit-circuitpython-bno08x",
     use_scm_version=True,
     setup_requires=["setuptools_scm"],
     description="Helper library for the Hillcrest Laboratories BNO08x IMUs",
@@ -50,7 +50,7 @@ setup(
     ],
     # What does your project relate to?
     keywords="adafruit blinka circuitpython micropython bno080 IMU BNO055 SENSOR FUSION VR "
-    "MOTION TRACK",
+    "MOTION TRACK BNO085",
     # You can just specify the packages manually here if your project is
     # simple. Or you can use find_packages().
     # TODO: IF LIBRARY FILES ARE A PACKAGE FOLDER,
