@@ -4,13 +4,14 @@
 import time
 import board
 import busio
-from digitalio import DigitalInOut
 import adafruit_bno080
-from adafruit_bno080.i2c import BNO080_I2C
+from adafruit_bno080.uart import BNO080_UART
 
-i2c = busio.I2C(board.SCL, board.SDA, frequency=800000)
-reset_pin = DigitalInOut(board.D5)
-bno = BNO080_I2C(i2c, reset=reset_pin, debug=False)
+# import serial
+# uart = serial.Serial("COM49", baudrate=3000000, timeout=1)
+# print(uart.name)
+uart = busio.UART(board.TX, board.RX, baudrate=3000000, receiver_buffer_size=2048)
+bno = BNO080_UART(uart, reset=None, debug=True)
 
 bno.enable_feature(adafruit_bno080.BNO_REPORT_ACCELEROMETER)
 bno.enable_feature(adafruit_bno080.BNO_REPORT_GYROSCOPE)

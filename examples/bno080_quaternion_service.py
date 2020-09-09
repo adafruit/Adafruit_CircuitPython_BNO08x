@@ -4,9 +4,9 @@
 import time
 import board
 from adafruit_ble import BLERadio
-from adafruit_bno080 import BNO080
 from adafruit_ble_adafruit.adafruit_service import AdafruitServerAdvertisement
 from adafruit_ble_adafruit.quaternion_service import QuaternionService
+from adafruit_bno080 import BNO080
 
 i2c = board.I2C()
 bno = BNO080(i2c)
