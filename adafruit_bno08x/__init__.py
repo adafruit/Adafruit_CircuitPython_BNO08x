@@ -93,6 +93,7 @@ BNO_REPORT_GYRO_INTEGRATED_ROTATION_VECTOR = const(0x2A)
 _DEFAULT_REPORT_INTERVAL = const(50000)  # in microseconds = 50ms
 _QUAT_READ_TIMEOUT = 0.500  # timeout in seconds
 _PACKET_READ_TIMEOUT = 15.000  # timeout in seconds
+_FEATURE_ENABLE_TIMEOUT = 2.0
 _BNO08X_CMD_RESET = const(0x01)
 _QUAT_Q_POINT = const(14)
 _BNO_HEADER_LEN = const(4)
@@ -126,12 +127,29 @@ _AVAIL_SENSOR_REPORTS = {
     BNO_REPORT_GYROSCOPE: (_Q_POINT_9_SCALAR, 3, 10),
     BNO_REPORT_MAGNETIC_FIELD: (_Q_POINT_4_SCALAR, 3, 10),
     BNO_REPORT_LINEAR_ACCELERATION: (_Q_POINT_8_SCALAR, 3, 10),
-    BNO_REPORT_ROTATION_VECTOR: (_Q_POINT_14_SCALAR, 4, 14,),
+    BNO_REPORT_ROTATION_VECTOR: (_Q_POINT_14_SCALAR, 4, 14),
     BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR: (_Q_POINT_12_SCALAR, 4, 14),
     BNO_REPORT_STEP_COUNTER: (1, 1, 12),
     BNO_REPORT_SHAKE_DETECTOR: (1, 1, 6),
     BNO_REPORT_STABILITY_CLASSIFIER: (1, 1, 6),
     BNO_REPORT_ACTIVITY_CLASSIFIER: (1, 1, 16),
+}
+_INITIAL_REPORTS = {
+    BNO_REPORT_ACTIVITY_CLASSIFIER: {
+        "Tilting": -1,
+        "most_likely": "Unknown",
+        "OnStairs": -1,
+        "On-Foot": -1,
+        "Other": -1,
+        "On-Bicycle": -1,
+        "Still": -1,
+        "Walking": -1,
+        "Unknown": -1,
+        "Running": -1,
+        "In-Vehicle": -1,
+    },
+    BNO_REPORT_STABILITY_CLASSIFIER: "Unknown",
+    BNO_REPORT_ROTATION_VECTOR: (0.0, 0.0, 0.0, 0.0),
 }
 
 _ENABLED_ACTIVITIES = (
@@ -199,27 +217,17 @@ def _parse_stability_classifier_report(report_bytes):
     ]
 
 
+def _parse_get_feature_response_report(report_bytes):
+    return unpack_from("<BBBHIII", report_bytes)
+
+
 # 0 Report ID = 0x1E
 # 1 Sequence number
 # 2 Status
 # 3 Delay
 # 4 Page Number + EOS
 # 5 Most likely state
-# 6 Classification (10 x Page Number) confidence
-# 7 Classification (10 x Page Number) + 1 confidence
-# 8 Classification (10 x Page Number) + 2 confidence
-
-# 9 Classification (10 x Page Number) + 3 confidence
-# 10 Classification (10 x Page Number) + 4 confidence
-# 11 Classification (10 x Page Number) + 5 confidence
-
-# 12 Classification (10 x Page Number) + 6 confidence
-# 13 Classification (10 x Page Number) + 7 confidence
-# 14 Classification (10 x Page Number) + 8 confidence
-
-# 15 Classification(10 x Page Number) + 9 confidence
-
-
+# 6-15 Classification (10 x Page Number) + confidence
 def _parse_activity_classifier_report(report_bytes):
     activities = [
         "Unknown",
@@ -231,14 +239,13 @@ def _parse_activity_classifier_report(report_bytes):
         "Walking",  # for
         "Running",  # activities
         "OnStairs",
-        "Other",
     ]
 
     end_and_page_number = unpack_from("<B", report_bytes, offset=4)[0]
     last_page = (end_and_page_number & 0b10000000) > 0
     page_number = end_and_page_number & 0x7F
     most_likely = unpack_from("<B", report_bytes, offset=5)[0]
-    confidences = unpack_from("<BBBBBBBBBB", report_bytes, offset=6)
+    confidences = unpack_from("<BBBBBBBBB", report_bytes, offset=6)
     print(
         "page number:",
         page_number,
@@ -717,6 +724,7 @@ class BNO08X:
         pack_into("<I", set_feature_report, 5, report_interval)
         pack_into("<I", set_feature_report, 13, sensor_specific_config)
 
+        # _parse_get_feature_response_report(set_feature_report)
         return set_feature_report
 
     # TODO: add docs for available features
@@ -732,21 +740,21 @@ class BNO08X:
             set_feature_report = self._get_feature_enable_report(feature_id)
         print("Enabling", feature_id)
         self._send_packet(_BNO_CHANNEL_CONTROL, set_feature_report)
-        while True:
+
+        start_time = time.monotonic()  # 1
+
+        while _elapsed(start_time) < _FEATURE_ENABLE_TIMEOUT:
             packet = self._wait_for_packet_type(
                 _BNO_CHANNEL_CONTROL, _BNO_CMD_GET_FEATURE_RESPONSE
             )
 
             if packet.data[1] == feature_id:
-                if (
-                    feature_id == BNO_REPORT_ROTATION_VECTOR
-                ):  # check for other vector types as well
-                    self._readings[feature_id] = (0.0, 0.0, 0.0, 0.0)
-                else:
-                    self._readings[feature_id] = (0.0, 0.0, 0.0)
-                # print("Enabled", feature_id)
-                break
-            raise RuntimeError("Was not able to enable feature", feature_id)
+                # if there is a custom format, get it. Otherwise default to 3 16-bit axes
+                self._readings[feature_id] = _INITIAL_REPORTS.get(
+                    feature_id, (0.0, 0.0, 0.0)
+                )
+                return
+        raise RuntimeError("Was not able to enable feature", feature_id)
 
     def _check_id(self):
         self._dbg("\n********** READ ID **********")
