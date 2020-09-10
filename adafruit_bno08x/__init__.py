@@ -131,10 +131,12 @@ _AVAIL_SENSOR_REPORTS = {
     BNO_REPORT_STEP_COUNTER: (1, 1, 12),
     BNO_REPORT_SHAKE_DETECTOR: (1, 1, 6),
     BNO_REPORT_STABILITY_CLASSIFIER: (1, 1, 6),
-    BNO_REPORT_ACTIVITY_CLASSIFIER: (1, 1, 6),
+    BNO_REPORT_ACTIVITY_CLASSIFIER: (1, 1, 16),
 }
 
-_ENABLED_ACTIVITIES = 0x1FF #All activities; 1 bit set for each of 8 activities, + Unknown
+_ENABLED_ACTIVITIES = (
+    0x1FF  # All activities; 1 bit set for each of 8 activities, + Unknown
+)
 
 DATA_BUFFER_SIZE = const(512)  # data buffer size. obviously eats ram
 PacketHeader = namedtuple(
@@ -170,6 +172,7 @@ def elapsed_time(func):
 
 
 def _parse_sensor_report_data(report_bytes):
+    """Parses reports with only 16-bit fields"""
     data_offset = 4  # this may not always be true
     report_id = report_bytes[0]
     scalar, count, _report_length = _AVAIL_SENSOR_REPORTS[report_id]
@@ -194,6 +197,8 @@ def _parse_stability_classifier_report(report_bytes):
     return ["Unknown", "On Table", "Stationary", "Stable", "In motion"][
         classification_bitfield
     ]
+
+
 # 0 Report ID = 0x1E
 # 1 Sequence number
 # 2 Status
@@ -214,21 +219,41 @@ def _parse_stability_classifier_report(report_bytes):
 
 # 15 Classification(10 x Page Number) + 9 confidence
 
+
 def _parse_activity_classifier_report(report_bytes):
-    # 0 Unknown
-    # 1 In-Vehicle
-    # 2 On-Bicycle
-    # 3 On-Foot
-    # 4 Still
-    # 5 Tilting
-    # 6 Walking
-    # 7 Running
-    # 8 OnStairs
+    activities = [
+        "Unknown",
+        "In-Vehicle",  # look
+        "On-Bicycle",  # at
+        "On-Foot",  # all
+        "Still",  # this
+        "Tilting",  # room
+        "Walking",  # for
+        "Running",  # activities
+        "OnStairs",
+        "Other",
+    ]
 
-    most_likely_activity = unpack_from("<B", report_bytes, offset=5)[0]
-    activity_confidences = unpack_from("<BBBBBBBBBB", report_bytes, offset = 6)
-
-    return (most_likely_activity, activity_confidences)
+    end_and_page_number = unpack_from("<B", report_bytes, offset=4)[0]
+    last_page = (end_and_page_number & 0b10000000) > 0
+    page_number = end_and_page_number & 0x7F
+    most_likely = unpack_from("<B", report_bytes, offset=5)[0]
+    confidences = unpack_from("<BBBBBBBBBB", report_bytes, offset=6)
+    print(
+        "page number:",
+        page_number,
+        "last page:",
+        last_page,
+        "most likely activity:",
+        activities[most_likely],
+    )
+    classification = {}
+    classification["most_likely"] = activities[most_likely]
+    for idx, raw_confidence in enumerate(confidences):
+        confidence = (10 * page_number) + raw_confidence
+        activity_string = activities[idx]
+        classification[activity_string] = confidence
+    return classification
 
 
 def _parse_shake_report(report_bytes):
@@ -520,8 +545,10 @@ class BNO08X:
 
     @property
     def activity_classification(self):
-        """Returns the sensor's assessment of the activity that is creating the motions it's sensing, one of:
-        * "Unknown" - The sensor is unable to classify the current activity
+        """Returns the sensor's assessment of the activity that is creating the motions
+        it's sensing, one of:
+
+         * "Unknown" - The sensor is unable to classify the current activity
         * "In-Vehicle"
         * "On-Bicycle"
         * "On-Foot"
@@ -666,11 +693,8 @@ class BNO08X:
                 activity_classification = _parse_activity_classifier_report(
                     report_bytes
                 )
-                self._readings[
-                    BNO_REPORT_ACTIVITY_CLASSIFIER
-                ] = activity_classification
+                self._readings[BNO_REPORT_ACTIVITY_CLASSIFIER] = activity_classification
                 return
-
 
             sensor_data = _parse_sensor_report_data(report_bytes)
 
@@ -701,7 +725,9 @@ class BNO08X:
         self._dbg("\n********** Enabling feature id:", feature_id, "**********")
 
         if feature_id == BNO_REPORT_ACTIVITY_CLASSIFIER:
-            set_feature_report = self._get_feature_enable_report(feature_id, sensor_specific_config=_ENABLED_ACTIVITIES)
+            set_feature_report = self._get_feature_enable_report(
+                feature_id, sensor_specific_config=_ENABLED_ACTIVITIES
+            )
         else:
             set_feature_report = self._get_feature_enable_report(feature_id)
         print("Enabling", feature_id)
