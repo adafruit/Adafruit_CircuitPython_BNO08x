@@ -70,29 +70,31 @@ BNO_REPORT_ACCELEROMETER = const(0x01)
 # Calibrated gyroscope (rad/s).
 BNO_REPORT_GYROSCOPE = const(0x02)
 # Magnetic field calibrated (in µTesla). The fully calibrated magnetic field measurement.
-BNO_REPORT_MAGNETIC_FIELD = const(0x03)
+BNO_REPORT_MAGNETOMETER = const(0x03)
 # Linear acceleration (m/s2). Acceleration of the device with gravity removed
 BNO_REPORT_LINEAR_ACCELERATION = const(0x04)
 # Rotation Vector
 BNO_REPORT_ROTATION_VECTOR = const(0x05)
 BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR = const(0x09)
 BNO_REPORT_STEP_COUNTER = const(0x11)
+
+BNO_REPORT_RAW_ACCELEROMETER = const(0x14)
+BNO_REPORT_RAW_GYROSCOPE = const(0x15)
+BNO_REPORT_RAW_MAGNETOMETER = const(0x16)
 BNO_REPORT_SHAKE_DETECTOR = const(0x19)
 
 BNO_REPORT_STABILITY_CLASSIFIER = const(0x13)
 BNO_REPORT_ACTIVITY_CLASSIFIER = const(0x1E)
 BNO_REPORT_GYRO_INTEGRATED_ROTATION_VECTOR = const(0x2A)
 # TODOz:
-# Activity Classification
 # Calibrated Acceleration (m/s2)
 # Euler Angles (in degrees?)
 # CALIBRATION
-# TIMESTAMP
 # RAW ACCEL, MAG, GYRO # Sfe says each needs the non-raw enabled to work
 
 _DEFAULT_REPORT_INTERVAL = const(50000)  # in microseconds = 50ms
 _QUAT_READ_TIMEOUT = 0.500  # timeout in seconds
-_PACKET_READ_TIMEOUT = 15.000  # timeout in seconds
+_PACKET_READ_TIMEOUT = 2.000  # timeout in seconds
 _FEATURE_ENABLE_TIMEOUT = 2.0
 _BNO08X_CMD_RESET = const(0x01)
 _QUAT_Q_POINT = const(14)
@@ -110,8 +112,6 @@ _ACCEL_SCALAR = _Q_POINT_8_SCALAR
 _QUAT_SCALAR = _Q_POINT_14_SCALAR
 _GEO_QUAT_SCALAR = _Q_POINT_12_SCALAR
 _MAG_SCALAR = _Q_POINT_4_SCALAR
-# _QUAT_RADIAN_ACCURACY_SCALAR = _Q_POINT_12_SCALAR
-# _ANGULAR_VELOCITY_SCALAR = _Q_POINT_10_SCALAR
 
 _REPORT_LENGTHS = {
     _SHTP_REPORT_PRODUCT_ID_RESPONSE: 16,
@@ -121,11 +121,16 @@ _REPORT_LENGTHS = {
     _BNO_CMD_BASE_TIMESTAMP: 5,
     _BNO_CMD_TIMESTAMP_REBASE: 5,
 }
-# length is probably deterministic, like axes * 2 +4
+# these raw reports require their counterpart to be enabled
+_RAW_REPORTS = {
+    BNO_REPORT_RAW_ACCELEROMETER: BNO_REPORT_ACCELEROMETER,
+    BNO_REPORT_RAW_GYROSCOPE: BNO_REPORT_GYROSCOPE,
+    BNO_REPORT_RAW_MAGNETOMETER: BNO_REPORT_MAGNETOMETER,
+}
 _AVAIL_SENSOR_REPORTS = {
     BNO_REPORT_ACCELEROMETER: (_Q_POINT_8_SCALAR, 3, 10),
     BNO_REPORT_GYROSCOPE: (_Q_POINT_9_SCALAR, 3, 10),
-    BNO_REPORT_MAGNETIC_FIELD: (_Q_POINT_4_SCALAR, 3, 10),
+    BNO_REPORT_MAGNETOMETER: (_Q_POINT_4_SCALAR, 3, 10),
     BNO_REPORT_LINEAR_ACCELERATION: (_Q_POINT_8_SCALAR, 3, 10),
     BNO_REPORT_ROTATION_VECTOR: (_Q_POINT_14_SCALAR, 4, 14),
     BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR: (_Q_POINT_12_SCALAR, 4, 14),
@@ -133,6 +138,9 @@ _AVAIL_SENSOR_REPORTS = {
     BNO_REPORT_SHAKE_DETECTOR: (1, 1, 6),
     BNO_REPORT_STABILITY_CLASSIFIER: (1, 1, 6),
     BNO_REPORT_ACTIVITY_CLASSIFIER: (1, 1, 16),
+    BNO_REPORT_RAW_ACCELEROMETER: (1, 3, 16),
+    BNO_REPORT_RAW_GYROSCOPE: (1, 3, 16),
+    BNO_REPORT_RAW_MAGNETOMETER: (1, 3, 16),
 }
 _INITIAL_REPORTS = {
     BNO_REPORT_ACTIVITY_CLASSIFIER: {
@@ -189,17 +197,22 @@ def elapsed_time(func):
     return wrapper_timer
 
 
+############ PACKET PARSING ###########################
 def _parse_sensor_report_data(report_bytes):
     """Parses reports with only 16-bit fields"""
     data_offset = 4  # this may not always be true
     report_id = report_bytes[0]
     scalar, count, _report_length = _AVAIL_SENSOR_REPORTS[report_id]
-
+    if report_id in _RAW_REPORTS:
+        # raw reports are unsigned
+        format_str = "<H"
+    else:
+        format_str = "<h"
     results = []
 
     for _offset_idx in range(count):
         total_offset = data_offset + (_offset_idx * 2)
-        raw_data = unpack_from("<h", report_bytes, offset=total_offset)[0]
+        raw_data = unpack_from(format_str, report_bytes, offset=total_offset)[0]
         scaled_data = raw_data * scalar
         results.append(scaled_data)
 
@@ -246,14 +259,7 @@ def _parse_activity_classifier_report(report_bytes):
     page_number = end_and_page_number & 0x7F
     most_likely = unpack_from("<B", report_bytes, offset=5)[0]
     confidences = unpack_from("<BBBBBBBBB", report_bytes, offset=6)
-    print(
-        "page number:",
-        page_number,
-        "last page:",
-        last_page,
-        "most likely activity:",
-        activities[most_likely],
-    )
+
     classification = {}
     classification["most_likely"] = activities[most_likely]
     for idx, raw_confidence in enumerate(confidences):
@@ -448,7 +454,7 @@ class BNO08X:
         """A tuple of the current magnetic field measurements on the X, Y, and Z axes"""
         self._process_available_packets()  # decorator?
         try:
-            return self._readings[BNO_REPORT_MAGNETIC_FIELD]
+            return self._readings[BNO_REPORT_MAGNETOMETER]
         except KeyError:
             raise RuntimeError("No magfield report found, is it enabled?") from None
 
@@ -574,6 +580,38 @@ class BNO08X:
             raise RuntimeError(
                 "No activity classification report found, is it enabled?"
             ) from None
+
+    @property
+    def raw_acceleration(self):
+        """Returns the sensor's raw, unscaled value from the accelerometer registers"""
+        self._process_available_packets()
+        try:
+            raw_acceleration = self._readings[BNO_REPORT_RAW_ACCELEROMETER]
+            return raw_acceleration
+        except KeyError:
+            raise RuntimeError(
+                "No raw acceleration report found, is it enabled?"
+            ) from None
+
+    @property
+    def raw_gyro(self):
+        """Returns the sensor's raw, unscaled value from the gyro registers"""
+        self._process_available_packets()
+        try:
+            raw_gyro = self._readings[BNO_REPORT_RAW_GYROSCOPE]
+            return raw_gyro
+        except KeyError:
+            raise RuntimeError("No raw gyro report found, is it enabled?") from None
+
+    @property
+    def raw_magnetic(self):
+        """Returns the sensor's raw, unscaled value from the magnetometer registers"""
+        self._process_available_packets()
+        try:
+            raw_magnetic = self._readings[BNO_REPORT_RAW_MAGNETOMETER]
+            return raw_magnetic
+        except KeyError:
+            raise RuntimeError("No raw magnetic report found, is it enabled?") from None
 
     # # decorator?
     def _process_available_packets(self):
@@ -724,10 +762,11 @@ class BNO08X:
         pack_into("<I", set_feature_report, 5, report_interval)
         pack_into("<I", set_feature_report, 13, sensor_specific_config)
 
-        # _parse_get_feature_response_report(set_feature_report)
         return set_feature_report
 
     # TODO: add docs for available features
+    # TODO2: I think this should call an fn that imports all the bits for the given feature
+    # so we're not carrying around  stuff for extra features
     def enable_feature(self, feature_id):
         """Used to enable a given feature of the BNO08x"""
         self._dbg("\n********** Enabling feature id:", feature_id, "**********")
@@ -738,6 +777,13 @@ class BNO08X:
             )
         else:
             set_feature_report = self._get_feature_enable_report(feature_id)
+
+        feature_dependency = _RAW_REPORTS.get(feature_id, None)
+        if feature_dependency:
+            # if feature_dependency and not feature_dependency in self._reports:
+            self._dbg("Enabling feature depencency:", feature_dependency)
+            self.enable_feature(feature_dependency)
+
         print("Enabling", feature_id)
         self._send_packet(_BNO_CHANNEL_CONTROL, set_feature_report)
 
@@ -747,7 +793,7 @@ class BNO08X:
             packet = self._wait_for_packet_type(
                 _BNO_CHANNEL_CONTROL, _BNO_CMD_GET_FEATURE_RESPONSE
             )
-
+            print(packet)
             if packet.data[1] == feature_id:
                 # if there is a custom format, get it. Otherwise default to 3 16-bit axes
                 self._readings[feature_id] = _INITIAL_REPORTS.get(
