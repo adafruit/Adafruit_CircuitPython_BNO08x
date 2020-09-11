@@ -12,9 +12,10 @@ i2c = busio.I2C(board.SCL, board.SDA, frequency=800000)
 reset_pin = DigitalInOut(board.D5)
 bno = BNO08X_I2C(i2c, reset=reset_pin, debug=False)
 
-# bno.enable_feature(adafruit_bno08x.BNO_REPORT_ACCELEROMETER)
-# bno.enable_feature(adafruit_bno08x.BNO_REPORT_GYROSCOPE)
-# bno.enable_feature(adafruit_bno08x.BNO_REPORT_MAGNETOMETER)
+# TODO: UPDATE UART/SPI
+bno.enable_feature(adafruit_bno08x.BNO_REPORT_ACCELEROMETER)
+bno.enable_feature(adafruit_bno08x.BNO_REPORT_GYROSCOPE)
+bno.enable_feature(adafruit_bno08x.BNO_REPORT_MAGNETOMETER)
 bno.enable_feature(adafruit_bno08x.BNO_REPORT_LINEAR_ACCELERATION)
 bno.enable_feature(adafruit_bno08x.BNO_REPORT_ROTATION_VECTOR)
 bno.enable_feature(adafruit_bno08x.BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR)
@@ -119,4 +120,3 @@ while True:
     if bno.shake:
         print("SHAKE DETECTED!")
         print("")
-

@@ -230,6 +230,13 @@ def _parse_stability_classifier_report(report_bytes):
     ]
 
 
+# report_id
+# feature_report_id
+# feature_flags
+# change_sensitivity
+# report_interval
+# batch_interval_word
+# sensor_specific_configuration_word
 def _parse_get_feature_response_report(report_bytes):
     return unpack_from("<BBBHIII", report_bytes)
 
@@ -255,7 +262,7 @@ def _parse_activity_classifier_report(report_bytes):
     ]
 
     end_and_page_number = unpack_from("<B", report_bytes, offset=4)[0]
-    last_page = (end_and_page_number & 0b10000000) > 0
+    # last_page = (end_and_page_number & 0b10000000) > 0
     page_number = end_and_page_number & 0x7F
     most_likely = unpack_from("<B", report_bytes, offset=5)[0]
     confidences = unpack_from("<BBBBBBBBB", report_bytes, offset=6)
@@ -698,57 +705,58 @@ class BNO08X:
             self._dbg("\tBuild: %d" % (sw_build_number))
             self._dbg("")
 
+        if report_id == _BNO_CMD_GET_FEATURE_RESPONSE:
+            get_feature_report = _parse_get_feature_response_report(report_bytes)
+            _report_id, feature_report_id, *_remainder = get_feature_report
+            self._readings[feature_report_id] = _INITIAL_REPORTS.get(
+                feature_report_id, (0.0, 0.0, 0.0)
+            )
+
     def _process_report(self, report_id, report_bytes):
-        if report_id < 0xF0:
-            self._dbg("\tProcessing report:", reports[report_id])
-            if self._debug:
-                outstr = ""
-                for idx, packet_byte in enumerate(report_bytes):
-                    packet_index = idx
-                    if (packet_index % 4) == 0:
-                        outstr += "\nDBG::\t\t[0x{:02X}] ".format(packet_index)
-                    outstr += "0x{:02X} ".format(packet_byte)
-                print(outstr)
-                self._dbg("")
-
-            if report_id == BNO_REPORT_STEP_COUNTER:
-                self._readings[report_id] = _parse_step_couter_report(report_bytes)
-                return
-
-            if report_id == BNO_REPORT_SHAKE_DETECTOR:
-                shake_detected = _parse_shake_report(report_bytes)
-                # shake not previously detected - auto cleared by 'shake' property
-                try:
-                    if not self._readings[BNO_REPORT_SHAKE_DETECTOR]:
-                        self._readings[BNO_REPORT_SHAKE_DETECTOR] = shake_detected
-                except KeyError:
-                    pass
-                return
-
-            if report_id == BNO_REPORT_STABILITY_CLASSIFIER:
-                stability_classification = _parse_stability_classifier_report(
-                    report_bytes
-                )
-                self._readings[
-                    BNO_REPORT_STABILITY_CLASSIFIER
-                ] = stability_classification
-                return
-
-            if report_id == BNO_REPORT_ACTIVITY_CLASSIFIER:
-                activity_classification = _parse_activity_classifier_report(
-                    report_bytes
-                )
-                self._readings[BNO_REPORT_ACTIVITY_CLASSIFIER] = activity_classification
-                return
-
-            sensor_data = _parse_sensor_report_data(report_bytes)
-
-            # TODO: FIXME; Sensor reports are batched in a LIFO which means that multiple reports
-            # for the same type will end with the oldest/last being kept and the other
-            # newer reports thrown away
-            self._readings[report_id] = sensor_data
-        else:
+        if report_id >= 0xF0:
             self._handle_control_report(report_id, report_bytes)
+            return
+        self._dbg("\tProcessing report:", reports[report_id])
+        if self._debug:
+            outstr = ""
+            for idx, packet_byte in enumerate(report_bytes):
+                packet_index = idx
+                if (packet_index % 4) == 0:
+                    outstr += "\nDBG::\t\t[0x{:02X}] ".format(packet_index)
+                outstr += "0x{:02X} ".format(packet_byte)
+            print(outstr)
+            self._dbg("")
+
+        if report_id == BNO_REPORT_STEP_COUNTER:
+            self._readings[report_id] = _parse_step_couter_report(report_bytes)
+            return
+
+        if report_id == BNO_REPORT_SHAKE_DETECTOR:
+            shake_detected = _parse_shake_report(report_bytes)
+            # shake not previously detected - auto cleared by 'shake' property
+            try:
+                if not self._readings[BNO_REPORT_SHAKE_DETECTOR]:
+                    self._readings[BNO_REPORT_SHAKE_DETECTOR] = shake_detected
+            except KeyError:
+                pass
+            return
+
+        if report_id == BNO_REPORT_STABILITY_CLASSIFIER:
+            stability_classification = _parse_stability_classifier_report(report_bytes)
+            self._readings[BNO_REPORT_STABILITY_CLASSIFIER] = stability_classification
+            return
+
+        if report_id == BNO_REPORT_ACTIVITY_CLASSIFIER:
+            activity_classification = _parse_activity_classifier_report(report_bytes)
+            self._readings[BNO_REPORT_ACTIVITY_CLASSIFIER] = activity_classification
+            return
+
+        sensor_data = _parse_sensor_report_data(report_bytes)
+
+        # TODO: FIXME; Sensor reports are batched in a LIFO which means that multiple reports
+        # for the same type will end with the oldest/last being kept and the other
+        # newer reports thrown away
+        self._readings[report_id] = sensor_data
 
     # TODO: Make this a Packet creation
     @staticmethod
@@ -779,8 +787,8 @@ class BNO08X:
             set_feature_report = self._get_feature_enable_report(feature_id)
 
         feature_dependency = _RAW_REPORTS.get(feature_id, None)
-        if feature_dependency:
-            # if feature_dependency and not feature_dependency in self._reports:
+        # if the feature was enabled it will have a key in the readings dict
+        if feature_dependency and feature_dependency not in self._readings:
             self._dbg("Enabling feature depencency:", feature_dependency)
             self.enable_feature(feature_dependency)
 
@@ -790,15 +798,8 @@ class BNO08X:
         start_time = time.monotonic()  # 1
 
         while _elapsed(start_time) < _FEATURE_ENABLE_TIMEOUT:
-            packet = self._wait_for_packet_type(
-                _BNO_CHANNEL_CONTROL, _BNO_CMD_GET_FEATURE_RESPONSE
-            )
-            print(packet)
-            if packet.data[1] == feature_id:
-                # if there is a custom format, get it. Otherwise default to 3 16-bit axes
-                self._readings[feature_id] = _INITIAL_REPORTS.get(
-                    feature_id, (0.0, 0.0, 0.0)
-                )
+            self._process_available_packets()
+            if feature_id in self._readings:
                 return
         raise RuntimeError("Was not able to enable feature", feature_id)
 
