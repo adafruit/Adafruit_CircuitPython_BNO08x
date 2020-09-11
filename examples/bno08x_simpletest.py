@@ -19,6 +19,7 @@ bno.enable_feature(adafruit_bno08x.BNO_REPORT_MAGNETOMETER)
 bno.enable_feature(adafruit_bno08x.BNO_REPORT_LINEAR_ACCELERATION)
 bno.enable_feature(adafruit_bno08x.BNO_REPORT_ROTATION_VECTOR)
 bno.enable_feature(adafruit_bno08x.BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR)
+bno.enable_feature(adafruit_bno08x.BNO_REPORT_GAME_ROTATION_VECTOR)
 bno.enable_feature(adafruit_bno08x.BNO_REPORT_STEP_COUNTER)
 bno.enable_feature(adafruit_bno08x.BNO_REPORT_STABILITY_CLASSIFIER)
 bno.enable_feature(adafruit_bno08x.BNO_REPORT_ACTIVITY_CLASSIFIER)
@@ -72,7 +73,21 @@ while True:
         geo_quat_real,
     ) = bno.geomagnetic_quaternion  # pylint:disable=no-member
     print(
-        "I: %0.6f  J: %0.6f K: %0.6f  Real: %0.6f" % (quat_i, quat_j, quat_k, quat_real)
+        "I: %0.6f  J: %0.6f K: %0.6f  Real: %0.6f"
+        % (geo_quat_i, geo_quat_j, geo_quat_k, geo_quat_real)
+    )
+    # print("")
+
+    print("Game Rotation Vector Quaternion:")
+    (
+        game_quat_i,
+        game_quat_j,
+        game_quat_k,
+        game_quat_real,
+    ) = bno.game_quaternion  # pylint:disable=no-member
+    print(
+        "I: %0.6f  J: %0.6f K: %0.6f  Real: %0.6f"
+        % (game_quat_i, game_quat_j, game_quat_k, game_quat_real)
     )
     print("")
 

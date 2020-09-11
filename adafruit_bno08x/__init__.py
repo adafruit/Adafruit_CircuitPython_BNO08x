@@ -75,7 +75,10 @@ BNO_REPORT_MAGNETOMETER = const(0x03)
 BNO_REPORT_LINEAR_ACCELERATION = const(0x04)
 # Rotation Vector
 BNO_REPORT_ROTATION_VECTOR = const(0x05)
+BNO_REPORT_GAME_ROTATION_VECTOR = const(0x08)
+
 BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR = const(0x09)
+
 BNO_REPORT_STEP_COUNTER = const(0x11)
 
 BNO_REPORT_RAW_ACCELEROMETER = const(0x14)
@@ -134,6 +137,7 @@ _AVAIL_SENSOR_REPORTS = {
     BNO_REPORT_LINEAR_ACCELERATION: (_Q_POINT_8_SCALAR, 3, 10),
     BNO_REPORT_ROTATION_VECTOR: (_Q_POINT_14_SCALAR, 4, 14),
     BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR: (_Q_POINT_12_SCALAR, 4, 14),
+    BNO_REPORT_GAME_ROTATION_VECTOR: (_Q_POINT_14_SCALAR, 4, 12),
     BNO_REPORT_STEP_COUNTER: (1, 1, 12),
     BNO_REPORT_SHAKE_DETECTOR: (1, 1, 6),
     BNO_REPORT_STABILITY_CLASSIFIER: (1, 1, 6),
@@ -486,6 +490,20 @@ class BNO08X:
             ) from None
 
     @property
+    def game_quaternion(self):
+        """A quaternion representing the current rotation vector expressed as a quaternion with no
+        specific reference for heading, while roll and pitch are referenced against gravity. To
+        prevent sudden jumps in heading due to corrections, the `game_quaternion` property is not
+        corrected using the magnetometer. Some drift is expected"""
+        self._process_available_packets()
+        try:
+            return self._readings[BNO_REPORT_GAME_ROTATION_VECTOR]
+        except KeyError:
+            raise RuntimeError(
+                "No game quaternion report found, is it enabled?"
+            ) from None
+
+    @property
     def steps(self):
         """The number of steps detected since the sensor was initialized"""
         self._process_available_packets()
@@ -545,11 +563,12 @@ class BNO08X:
     @property
     def stability_classification(self):
         """Returns the sensor's assessment of it's current stability, one of:
+
         * "Unknown" - The sensor is unable to classify the current stability
         * "On Table" - The sensor is at rest on a stable surface with very little vibration
-        * "Stationary" -  The sensor’s motion is below the stable threshold but
-            the stable duration requirement has not been met. This output is only available when
-            gyro calibration is enabled
+        * "Stationary" -  The sensor’s motion is below the stable threshold but\
+        the stable duration requirement has not been met. This output is only available when\
+        gyro calibration is enabled
         * "Stable" - The sensor’s motion has met the stable threshold and duration requirements.
         * "In motion" - The sensor is moving.
 
@@ -565,10 +584,10 @@ class BNO08X:
 
     @property
     def activity_classification(self):
-        """Returns the sensor's assessment of the activity that is creating the motions
+        """Returns the sensor's assessment of the activity that is creating the motions\
         it's sensing, one of:
 
-         * "Unknown" - The sensor is unable to classify the current activity
+        * "Unknown"
         * "In-Vehicle"
         * "On-Bicycle"
         * "On-Foot"
