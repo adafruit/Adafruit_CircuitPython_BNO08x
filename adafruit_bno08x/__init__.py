@@ -44,26 +44,30 @@ _BNO_CHANNEL_INPUT_SENSOR_REPORTS = const(3)
 _BNO_CHANNEL_WAKE_INPUT_SENSOR_REPORTS = const(4)
 _BNO_CHANNEL_GYRO_ROTATION_VECTOR = const(5)
 
-_BNO_CMD_GET_FEATURE_REQUEST = const(0xFE)
-_BNO_CMD_SET_FEATURE_COMMAND = const(0xFD)
-_BNO_CMD_GET_FEATURE_RESPONSE = const(0xFC)
-_BNO_CMD_BASE_TIMESTAMP = const(0xFB)
+_GET_FEATURE_REQUEST = const(0xFE)
+_SET_FEATURE_COMMAND = const(0xFD)
+_GET_FEATURE_RESPONSE = const(0xFC)
+_BASE_TIMESTAMP = const(0xFB)
 
-_BNO_CMD_TIMESTAMP_REBASE = const(0xFA)
+_TIMESTAMP_REBASE = const(0xFA)
 
 _SHTP_REPORT_PRODUCT_ID_RESPONSE = const(0xF8)
 _SHTP_REPORT_PRODUCT_ID_REQUEST = const(0xF9)
 
-_BNO_CMD_FRS_WRITE_REQUEST = const(0xF7)
-_BNO_CMD_FRS_WRITE_DATA = const(0xF6)
-_BNO_CMD_FRS_WRITE_RESPONSE = const(0xF5)
+_FRS_WRITE_REQUEST = const(0xF7)
+_FRS_WRITE_DATA = const(0xF6)
+_FRS_WRITE_RESPONSE = const(0xF5)
 
-_BNO_CMD_FRS_READ_REQUEST = const(0xF4)
-_BNO_CMD_FRS_READ_RESPONSE = const(0xF3)
+_FRS_READ_REQUEST = const(0xF4)
+_FRS_READ_RESPONSE = const(0xF3)
 
-_BNO_CMD_COMMAND_REQUEST = const(0xF2)
-_BNO_CMD_COMMAND_RESPONSE = const(0xF1)
+_COMMAND_REQUEST = const(0xF2)
+_COMMAND_RESPONSE = const(0xF1)
 
+# DCD/ ME Calibration commands and sub-commands
+_SAVE_DCD = const(0x6)
+_ME_CALIBRATE = const(0x7)
+_ME_CAL_CONFIG = const(0x00)
 
 # Calibrated Acceleration (m/s2)
 BNO_REPORT_ACCELEROMETER = const(0x01)
@@ -99,6 +103,7 @@ _DEFAULT_REPORT_INTERVAL = const(50000)  # in microseconds = 50ms
 _QUAT_READ_TIMEOUT = 0.500  # timeout in seconds
 _PACKET_READ_TIMEOUT = 2.000  # timeout in seconds
 _FEATURE_ENABLE_TIMEOUT = 2.0
+_DEFAULT_TIMEOUT = 2.0
 _BNO08X_CMD_RESET = const(0x01)
 _QUAT_Q_POINT = const(14)
 _BNO_HEADER_LEN = const(4)
@@ -118,11 +123,11 @@ _MAG_SCALAR = _Q_POINT_4_SCALAR
 
 _REPORT_LENGTHS = {
     _SHTP_REPORT_PRODUCT_ID_RESPONSE: 16,
-    _BNO_CMD_GET_FEATURE_RESPONSE: 17,
-    _BNO_CMD_COMMAND_RESPONSE: 16,
+    _GET_FEATURE_RESPONSE: 17,
+    _COMMAND_RESPONSE: 16,
     _SHTP_REPORT_PRODUCT_ID_RESPONSE: 16,
-    _BNO_CMD_BASE_TIMESTAMP: 5,
-    _BNO_CMD_TIMESTAMP_REBASE: 5,
+    _BASE_TIMESTAMP: 5,
+    _TIMESTAMP_REBASE: 5,
 }
 # these raw reports require their counterpart to be enabled
 _RAW_REPORTS = {
@@ -299,6 +304,41 @@ def parse_sensor_id(buffer):
     return (sw_part_number, sw_major, sw_minor, sw_patch, sw_build_number)
 
 
+def _parse_command_response(report_bytes):
+
+    # CMD response report:
+    # 0 Report ID = 0xF1
+    # 1 Sequence number
+    # 2 Command
+    # 3 Command sequence number
+    # 4 Response sequence number
+    # 5 R0-10 A set of response values. The interpretation of these values is specific
+    # to the response for each command.
+    report_body = unpack_from("<BBBBB", report_bytes)
+    response_values = unpack_from("<BBBBBBBBBBB", report_bytes, offset=5)
+    return (report_body, response_values)
+
+
+def _insert_command_request_report(
+    command, buffer, next_sequence_number, command_params=None
+):
+    if command_params and len(command_params) > 9:
+        raise AttributeError(
+            "Command request reports can only have up to 9 arguments but %d were given"
+            % len(command_params)
+        )
+    for _i in range(12):
+        buffer[_i] = 0
+    buffer[0] = _COMMAND_REQUEST
+    buffer[1] = next_sequence_number
+    buffer[2] = command
+    if command_params is None:
+        return
+
+    for idx, param in enumerate(command_params):
+        buffer[4 + 3 + idx] = param
+
+
 def _report_length(report_id):
     if report_id < 0xF0:  # it's a sensor report
         return _AVAIL_SENSOR_REPORTS[report_id][2]
@@ -325,6 +365,15 @@ def _separate_batch(packet, report_slices):
 
         report_slices.append([report_slice[0], report_slice])
         next_byte_index = next_byte_index + required_bytes
+
+
+# class Report:
+#     _buffer = bytearray(DATA_BUFFER_SIZE)
+#     _report_obj = Report(_buffer)
+
+#     @classmethod
+#     def get_report(cls)
+#         return cls._report_obj
 
 
 class Packet:
@@ -440,10 +489,17 @@ class BNO08X:
         self._reset = reset
         self._dbg("********** __init__ *************")
         self._data_buffer = bytearray(DATA_BUFFER_SIZE)
+        self._command_buffer = bytearray(12)
         self._packet_slices = []
 
         # TODO: this is wrong there should be one per channel per direction
         self._sequence_number = [0, 0, 0, 0, 0, 0]
+        self._two_ended_sequence_numbers = {
+            "send": {},  # holds the next seq number to send with the report id as a key
+            "receive": {},
+        }
+        self._dcd_saved_at = -1
+        self._me_calibration_started_at = -1
         # self._sequence_number = {"in": [0, 0, 0, 0, 0, 0], "out": [0, 0, 0, 0, 0, 0]}
         # sef
         self._wait_for_initialize = True
@@ -639,6 +695,81 @@ class BNO08X:
         except KeyError:
             raise RuntimeError("No raw magnetic report found, is it enabled?") from None
 
+    def begin_calibration(self):
+        # start calibration for accel, gyro, and mag
+        self._send_me_command(
+            [
+                1,  # calibrate accel
+                1,  # calibrate gyro
+                1,  # calibrate mag
+                _ME_CAL_CONFIG,
+                0,  # calibrate planar acceleration
+                0,  # 'on_table' calibration
+                0,  # reserved
+                0,  # reserved
+                0,  # reserved
+            ]
+        )
+
+    def _send_me_command(self, subcommand_params):
+
+        start_time = time.monotonic()
+        local_buffer = self._command_buffer
+        _insert_command_request_report(
+            _ME_CALIBRATE,
+            self._command_buffer,  # should use self._data_buffer :\ but send_packet don't
+            self.get_report_seq_id(_COMMAND_REQUEST),
+            subcommand_params,
+        )
+        self._send_packet(_BNO_CHANNEL_CONTROL, local_buffer)
+        self._increment_report_seq(_COMMAND_REQUEST)
+        while _elapsed(start_time) < _DEFAULT_TIMEOUT:
+            self._process_available_packets()
+            if self._me_calibration_started_at > start_time:
+                break
+        print("ME Started?")
+
+    def save_calibration_data(self):
+        # send a DCD save command
+        # _COMMAND_REQUEST = const(0xF2)
+        # _COMMAND_RESPONSE = const(0xF1)
+        start_time = time.monotonic()
+        local_buffer = bytearray(12)
+        _insert_command_request_report(
+            _SAVE_DCD,
+            local_buffer,  # should use self._data_buffer :\ but send_packet don't
+            self.get_report_seq_id(_COMMAND_REQUEST),
+        )
+        self._send_packet(_BNO_CHANNEL_CONTROL, local_buffer)
+        self._increment_report_seq(_COMMAND_REQUEST)
+        while _elapsed(start_time) < _DEFAULT_TIMEOUT:
+            self._process_available_packets()
+            if self._dcd_saved_at > start_time:
+                break
+        print("DCD SAVED?")
+        # Byte Description
+        # 0 Report ID = 0xF2
+        # 1 Sequence number
+        # 2 Command
+        # P0-9: a set of command-specific parameters. The interpretation of these
+        # parameters is defined for each command.
+        # 3 P0
+        # 4 P1
+        # 5 P2
+        # 6 P3
+        # 7 P4
+        # 8 P5
+        # 9 P6
+        # 10 P7
+        # 11 P8
+
+        # poll on DCD calibration status
+
+        # TODO: Make this a Packet creation
+
+        self._increment_report_seq(_COMMAND_REQUEST)
+
+    ############### private/helper methods ###############
     # # decorator?
     def _process_available_packets(self):
         processed_count = 0
@@ -724,12 +855,29 @@ class BNO08X:
             self._dbg("\tBuild: %d" % (sw_build_number))
             self._dbg("")
 
-        if report_id == _BNO_CMD_GET_FEATURE_RESPONSE:
+        if report_id == _GET_FEATURE_RESPONSE:
             get_feature_report = _parse_get_feature_response_report(report_bytes)
             _report_id, feature_report_id, *_remainder = get_feature_report
             self._readings[feature_report_id] = _INITIAL_REPORTS.get(
                 feature_report_id, (0.0, 0.0, 0.0)
             )
+        if report_id == _COMMAND_RESPONSE:
+            self._handle_command_response(report_bytes)
+
+    def _handle_command_response(self, report_bytes):
+        (report_body, response_values) = _parse_command_response(report_bytes)
+        print(
+            "report id: %x sequence number: %x command: %x command sequence number: %x response sequence number: %x"
+            % report_body
+        )
+        report_id, sequence_number, command, command_sequence_number = report_body
+        if command == _ME_CALIBRATE:
+            self._me_calibration_started_at = time.monotonic()
+        if command == _SAVE_DCD:
+            if response_values[0] == 0:
+                self._dcd_saved_at = time.monotonic()
+            else:
+                raise RuntimeError("Unable to save calibration data")
 
     def _process_report(self, report_id, report_bytes):
         if report_id >= 0xF0:
@@ -784,7 +932,7 @@ class BNO08X:
     ):
         # TODO !!! ALLOCATION !!!
         set_feature_report = bytearray(17)
-        set_feature_report[0] = _BNO_CMD_SET_FEATURE_COMMAND
+        set_feature_report[0] = _SET_FEATURE_COMMAND
         set_feature_report[1] = feature_id
         pack_into("<I", set_feature_report, 5, report_interval)
         pack_into("<I", set_feature_report, 13, sensor_specific_config)
@@ -917,5 +1065,9 @@ class BNO08X:
     def _read_packet(self):
         raise RuntimeError("Not implemented")
 
-    def _send_packet(self, channel, data):
-        raise RuntimeError("Not implemented")
+    def _increment_report_seq(self, report_id):
+        current = self._two_ended_sequence_numbers.get(report_id, 0)
+        self._two_ended_sequence_numbers[report_id] = (current + 1) % 256
+
+    def _get_report_seq_id(self, report_id):
+        return self._two_ended_sequence_numbers[report_id]
