@@ -35,7 +35,9 @@ class BNO08X_I2C(BNO08X):
         self._data_buffer[3] = self._sequence_number[channel]
         for idx, send_byte in enumerate(data):
             self._data_buffer[4 + idx] = send_byte
-
+        packet = Packet(self._data_buffer)
+        self._dbg("Sending packet:")
+        self._dbg(packet)
         with self.bus_device_obj as i2c:
             i2c.write(self._data_buffer, end=write_length)
 

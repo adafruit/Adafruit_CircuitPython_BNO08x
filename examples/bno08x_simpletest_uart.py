@@ -15,7 +15,7 @@ bno = BNO08X_UART(uart, reset=None, debug=False)
 
 bno.enable_feature(adafruit_bno08x.BNO_REPORT_ACCELEROMETER)
 bno.enable_feature(adafruit_bno08x.BNO_REPORT_GYROSCOPE)
-bno.enable_feature(adafruit_bno08x.BNO_REPORT_MAGNETIC_FIELD)
+bno.enable_feature(adafruit_bno08x.BNO_REPORT_MAGNETOMETER)
 bno.enable_feature(adafruit_bno08x.BNO_REPORT_LINEAR_ACCELERATION)
 bno.enable_feature(adafruit_bno08x.BNO_REPORT_ROTATION_VECTOR)
 bno.enable_feature(adafruit_bno08x.BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR)

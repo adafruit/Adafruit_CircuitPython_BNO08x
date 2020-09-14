@@ -44,45 +44,67 @@ _BNO_CHANNEL_INPUT_SENSOR_REPORTS = const(3)
 _BNO_CHANNEL_WAKE_INPUT_SENSOR_REPORTS = const(4)
 _BNO_CHANNEL_GYRO_ROTATION_VECTOR = const(5)
 
-_BNO_CMD_GET_FEATURE_REQUEST = const(0xFE)
-_BNO_CMD_SET_FEATURE_COMMAND = const(0xFD)
-_BNO_CMD_GET_FEATURE_RESPONSE = const(0xFC)
-_BNO_CMD_BASE_TIMESTAMP = const(0xFB)
+_GET_FEATURE_REQUEST = const(0xFE)
+_SET_FEATURE_COMMAND = const(0xFD)
+_GET_FEATURE_RESPONSE = const(0xFC)
+_BASE_TIMESTAMP = const(0xFB)
 
-_BNO_CMD_TIMESTAMP_REBASE = const(0xFA)
+_TIMESTAMP_REBASE = const(0xFA)
 
 _SHTP_REPORT_PRODUCT_ID_RESPONSE = const(0xF8)
 _SHTP_REPORT_PRODUCT_ID_REQUEST = const(0xF9)
 
-_BNO_CMD_FRS_WRITE_REQUEST = const(0xF7)
-_BNO_CMD_FRS_WRITE_DATA = const(0xF6)
-_BNO_CMD_FRS_WRITE_RESPONSE = const(0xF5)
+_FRS_WRITE_REQUEST = const(0xF7)
+_FRS_WRITE_DATA = const(0xF6)
+_FRS_WRITE_RESPONSE = const(0xF5)
 
-_BNO_CMD_FRS_READ_REQUEST = const(0xF4)
-_BNO_CMD_FRS_READ_RESPONSE = const(0xF3)
+_FRS_READ_REQUEST = const(0xF4)
+_FRS_READ_RESPONSE = const(0xF3)
 
-_BNO_CMD_COMMAND_REQUEST = const(0xF2)
-_BNO_CMD_COMMAND_RESPONSE = const(0xF1)
+_COMMAND_REQUEST = const(0xF2)
+_COMMAND_RESPONSE = const(0xF1)
 
+# DCD/ ME Calibration commands and sub-commands
+_SAVE_DCD = const(0x6)
+_ME_CALIBRATE = const(0x7)
+_ME_CAL_CONFIG = const(0x00)
+_ME_GET_CAL = const(0x01)
 
 # Calibrated Acceleration (m/s2)
 BNO_REPORT_ACCELEROMETER = const(0x01)
 # Calibrated gyroscope (rad/s).
 BNO_REPORT_GYROSCOPE = const(0x02)
 # Magnetic field calibrated (in µTesla). The fully calibrated magnetic field measurement.
-BNO_REPORT_MAGNETIC_FIELD = const(0x03)
+BNO_REPORT_MAGNETOMETER = const(0x03)
 # Linear acceleration (m/s2). Acceleration of the device with gravity removed
 BNO_REPORT_LINEAR_ACCELERATION = const(0x04)
 # Rotation Vector
 BNO_REPORT_ROTATION_VECTOR = const(0x05)
+BNO_REPORT_GAME_ROTATION_VECTOR = const(0x08)
+
 BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR = const(0x09)
+
 BNO_REPORT_STEP_COUNTER = const(0x11)
+
+BNO_REPORT_RAW_ACCELEROMETER = const(0x14)
+BNO_REPORT_RAW_GYROSCOPE = const(0x15)
+BNO_REPORT_RAW_MAGNETOMETER = const(0x16)
 BNO_REPORT_SHAKE_DETECTOR = const(0x19)
 
+BNO_REPORT_STABILITY_CLASSIFIER = const(0x13)
+BNO_REPORT_ACTIVITY_CLASSIFIER = const(0x1E)
+BNO_REPORT_GYRO_INTEGRATED_ROTATION_VECTOR = const(0x2A)
+# TODOz:
+# Calibrated Acceleration (m/s2)
+# Euler Angles (in degrees?)
+# CALIBRATION
+# RAW ACCEL, MAG, GYRO # Sfe says each needs the non-raw enabled to work
 
 _DEFAULT_REPORT_INTERVAL = const(50000)  # in microseconds = 50ms
 _QUAT_READ_TIMEOUT = 0.500  # timeout in seconds
-_PACKET_READ_TIMEOUT = 15.000  # timeout in seconds
+_PACKET_READ_TIMEOUT = 2.000  # timeout in seconds
+_FEATURE_ENABLE_TIMEOUT = 2.0
+_DEFAULT_TIMEOUT = 2.0
 _BNO08X_CMD_RESET = const(0x01)
 _QUAT_Q_POINT = const(14)
 _BNO_HEADER_LEN = const(4)
@@ -99,28 +121,58 @@ _ACCEL_SCALAR = _Q_POINT_8_SCALAR
 _QUAT_SCALAR = _Q_POINT_14_SCALAR
 _GEO_QUAT_SCALAR = _Q_POINT_12_SCALAR
 _MAG_SCALAR = _Q_POINT_4_SCALAR
-# _QUAT_RADIAN_ACCURACY_SCALAR = _Q_POINT_12_SCALAR
-# _ANGULAR_VELOCITY_SCALAR = _Q_POINT_10_SCALAR
 
 _REPORT_LENGTHS = {
     _SHTP_REPORT_PRODUCT_ID_RESPONSE: 16,
-    _BNO_CMD_GET_FEATURE_RESPONSE: 17,
-    _BNO_CMD_COMMAND_RESPONSE: 16,
+    _GET_FEATURE_RESPONSE: 17,
+    _COMMAND_RESPONSE: 16,
     _SHTP_REPORT_PRODUCT_ID_RESPONSE: 16,
-    _BNO_CMD_BASE_TIMESTAMP: 5,
-    _BNO_CMD_TIMESTAMP_REBASE: 5,
+    _BASE_TIMESTAMP: 5,
+    _TIMESTAMP_REBASE: 5,
 }
-# length is probably deterministic, like axes * 2 +4
+# these raw reports require their counterpart to be enabled
+_RAW_REPORTS = {
+    BNO_REPORT_RAW_ACCELEROMETER: BNO_REPORT_ACCELEROMETER,
+    BNO_REPORT_RAW_GYROSCOPE: BNO_REPORT_GYROSCOPE,
+    BNO_REPORT_RAW_MAGNETOMETER: BNO_REPORT_MAGNETOMETER,
+}
 _AVAIL_SENSOR_REPORTS = {
     BNO_REPORT_ACCELEROMETER: (_Q_POINT_8_SCALAR, 3, 10),
     BNO_REPORT_GYROSCOPE: (_Q_POINT_9_SCALAR, 3, 10),
-    BNO_REPORT_MAGNETIC_FIELD: (_Q_POINT_4_SCALAR, 3, 10),
+    BNO_REPORT_MAGNETOMETER: (_Q_POINT_4_SCALAR, 3, 10),
     BNO_REPORT_LINEAR_ACCELERATION: (_Q_POINT_8_SCALAR, 3, 10),
-    BNO_REPORT_ROTATION_VECTOR: (_Q_POINT_14_SCALAR, 4, 14,),
+    BNO_REPORT_ROTATION_VECTOR: (_Q_POINT_14_SCALAR, 4, 14),
     BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR: (_Q_POINT_12_SCALAR, 4, 14),
+    BNO_REPORT_GAME_ROTATION_VECTOR: (_Q_POINT_14_SCALAR, 4, 12),
     BNO_REPORT_STEP_COUNTER: (1, 1, 12),
     BNO_REPORT_SHAKE_DETECTOR: (1, 1, 6),
+    BNO_REPORT_STABILITY_CLASSIFIER: (1, 1, 6),
+    BNO_REPORT_ACTIVITY_CLASSIFIER: (1, 1, 16),
+    BNO_REPORT_RAW_ACCELEROMETER: (1, 3, 16),
+    BNO_REPORT_RAW_GYROSCOPE: (1, 3, 16),
+    BNO_REPORT_RAW_MAGNETOMETER: (1, 3, 16),
 }
+_INITIAL_REPORTS = {
+    BNO_REPORT_ACTIVITY_CLASSIFIER: {
+        "Tilting": -1,
+        "most_likely": "Unknown",
+        "OnStairs": -1,
+        "On-Foot": -1,
+        "Other": -1,
+        "On-Bicycle": -1,
+        "Still": -1,
+        "Walking": -1,
+        "Unknown": -1,
+        "Running": -1,
+        "In-Vehicle": -1,
+    },
+    BNO_REPORT_STABILITY_CLASSIFIER: "Unknown",
+    BNO_REPORT_ROTATION_VECTOR: (0.0, 0.0, 0.0, 0.0),
+}
+
+_ENABLED_ACTIVITIES = (
+    0x1FF  # All activities; 1 bit set for each of 8 activities, + Unknown
+)
 
 DATA_BUFFER_SIZE = const(512)  # data buffer size. obviously eats ram
 PacketHeader = namedtuple(
@@ -128,7 +180,12 @@ PacketHeader = namedtuple(
     ["channel_number", "sequence_number", "data_length", "packet_byte_count",],
 )
 
-REPORT_STATUS = ["Unreliable", "Accuracy low", "Accuracy medium", "Accuracy high"]
+REPORT_ACCURACY_STATUS = [
+    "Accuracy Unreliable",
+    "Low Accuracy",
+    "Medium Accuracy",
+    "High Accuracy",
+]
 
 
 class PacketError(Exception):
@@ -155,32 +212,86 @@ def elapsed_time(func):
     return wrapper_timer
 
 
+############ PACKET PARSING ###########################
 def _parse_sensor_report_data(report_bytes):
+    """Parses reports with only 16-bit fields"""
     data_offset = 4  # this may not always be true
     report_id = report_bytes[0]
     scalar, count, _report_length = _AVAIL_SENSOR_REPORTS[report_id]
-
+    if report_id in _RAW_REPORTS:
+        # raw reports are unsigned
+        format_str = "<H"
+    else:
+        format_str = "<h"
     results = []
+    accuracy = unpack_from("<B", report_bytes, offset=2)[0]
+    accuracy &= 0b11
 
     for _offset_idx in range(count):
         total_offset = data_offset + (_offset_idx * 2)
-        raw_data = unpack_from("<h", report_bytes, offset=total_offset)[0]
+        raw_data = unpack_from(format_str, report_bytes, offset=total_offset)[0]
         scaled_data = raw_data * scalar
         results.append(scaled_data)
+    results_tuple = tuple(results)
 
-    return tuple(results)
+    return (results_tuple, accuracy)
 
 
-# 0	Report ID = 0x11
-# 1	Sequence number
-# 2	Status
-# 3	Delay
-# [7:4]	Detect latency
-# [9:8]	Steps
-# 10	Reserved
-# 11	Reserved
 def _parse_step_couter_report(report_bytes):
     return unpack_from("<H", report_bytes, offset=8)[0]
+
+
+def _parse_stability_classifier_report(report_bytes):
+    classification_bitfield = unpack_from("<B", report_bytes, offset=4)[0]
+    return ["Unknown", "On Table", "Stationary", "Stable", "In motion"][
+        classification_bitfield
+    ]
+
+
+# report_id
+# feature_report_id
+# feature_flags
+# change_sensitivity
+# report_interval
+# batch_interval_word
+# sensor_specific_configuration_word
+def _parse_get_feature_response_report(report_bytes):
+    return unpack_from("<BBBHIII", report_bytes)
+
+
+# 0 Report ID = 0x1E
+# 1 Sequence number
+# 2 Status
+# 3 Delay
+# 4 Page Number + EOS
+# 5 Most likely state
+# 6-15 Classification (10 x Page Number) + confidence
+def _parse_activity_classifier_report(report_bytes):
+    activities = [
+        "Unknown",
+        "In-Vehicle",  # look
+        "On-Bicycle",  # at
+        "On-Foot",  # all
+        "Still",  # this
+        "Tilting",  # room
+        "Walking",  # for
+        "Running",  # activities
+        "OnStairs",
+    ]
+
+    end_and_page_number = unpack_from("<B", report_bytes, offset=4)[0]
+    # last_page = (end_and_page_number & 0b10000000) > 0
+    page_number = end_and_page_number & 0x7F
+    most_likely = unpack_from("<B", report_bytes, offset=5)[0]
+    confidences = unpack_from("<BBBBBBBBB", report_bytes, offset=6)
+
+    classification = {}
+    classification["most_likely"] = activities[most_likely]
+    for idx, raw_confidence in enumerate(confidences):
+        confidence = (10 * page_number) + raw_confidence
+        activity_string = activities[idx]
+        classification[activity_string] = confidence
+    return classification
 
 
 def _parse_shake_report(report_bytes):
@@ -200,6 +311,41 @@ def parse_sensor_id(buffer):
     sw_build_number = unpack_from("<I", buffer, offset=8)[0]
 
     return (sw_part_number, sw_major, sw_minor, sw_patch, sw_build_number)
+
+
+def _parse_command_response(report_bytes):
+
+    # CMD response report:
+    # 0 Report ID = 0xF1
+    # 1 Sequence number
+    # 2 Command
+    # 3 Command sequence number
+    # 4 Response sequence number
+    # 5 R0-10 A set of response values. The interpretation of these values is specific
+    # to the response for each command.
+    report_body = unpack_from("<BBBBB", report_bytes)
+    response_values = unpack_from("<BBBBBBBBBBB", report_bytes, offset=5)
+    return (report_body, response_values)
+
+
+def _insert_command_request_report(
+    command, buffer, next_sequence_number, command_params=None
+):
+    if command_params and len(command_params) > 9:
+        raise AttributeError(
+            "Command request reports can only have up to 9 arguments but %d were given"
+            % len(command_params)
+        )
+    for _i in range(12):
+        buffer[_i] = 0
+    buffer[0] = _COMMAND_REQUEST
+    buffer[1] = next_sequence_number
+    buffer[2] = command
+    if command_params is None:
+        return
+
+    for idx, param in enumerate(command_params):
+        buffer[3 + idx] = param
 
 
 def _report_length(report_id):
@@ -228,6 +374,15 @@ def _separate_batch(packet, report_slices):
 
         report_slices.append([report_slice[0], report_slice])
         next_byte_index = next_byte_index + required_bytes
+
+
+# class Report:
+#     _buffer = bytearray(DATA_BUFFER_SIZE)
+#     _report_obj = Report(_buffer)
+
+#     @classmethod
+#     def get_report(cls)
+#         return cls._report_obj
 
 
 class Packet:
@@ -331,7 +486,7 @@ class Packet:
         return False
 
 
-class BNO08X:
+class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-methods
     """Library for the BNO08x IMUs from Hillcrest Laboratories
 
         :param ~busio.I2C i2c_bus: The I2C bus the BNO08x is connected to.
@@ -343,12 +498,19 @@ class BNO08X:
         self._reset = reset
         self._dbg("********** __init__ *************")
         self._data_buffer = bytearray(DATA_BUFFER_SIZE)
+        self._command_buffer = bytearray(12)
         self._packet_slices = []
 
         # TODO: this is wrong there should be one per channel per direction
         self._sequence_number = [0, 0, 0, 0, 0, 0]
-        # self._sequence_number = {"in": [0, 0, 0, 0, 0, 0], "out": [0, 0, 0, 0, 0, 0]}
-        # sef
+        self._two_ended_sequence_numbers = {
+            "send": {},  # holds the next seq number to send with the report id as a key
+            "receive": {},
+        }
+        self._dcd_saved_at = -1
+        self._me_calibration_started_at = -1
+        self._calibration_complete = False
+        self._magnetometer_accuracy = 0
         self._wait_for_initialize = True
         self._init_complete = False
         self._id_read = False
@@ -368,7 +530,7 @@ class BNO08X:
         """A tuple of the current magnetic field measurements on the X, Y, and Z axes"""
         self._process_available_packets()  # decorator?
         try:
-            return self._readings[BNO_REPORT_MAGNETIC_FIELD]
+            return self._readings[BNO_REPORT_MAGNETOMETER]
         except KeyError:
             raise RuntimeError("No magfield report found, is it enabled?") from None
 
@@ -390,6 +552,20 @@ class BNO08X:
         except KeyError:
             raise RuntimeError(
                 "No geomag quaternion report found, is it enabled?"
+            ) from None
+
+    @property
+    def game_quaternion(self):
+        """A quaternion representing the current rotation vector expressed as a quaternion with no
+        specific reference for heading, while roll and pitch are referenced against gravity. To
+        prevent sudden jumps in heading due to corrections, the `game_quaternion` property is not
+        corrected using the magnetometer. Some drift is expected"""
+        self._process_available_packets()
+        try:
+            return self._readings[BNO_REPORT_GAME_ROTATION_VECTOR]
+        except KeyError:
+            raise RuntimeError(
+                "No game quaternion report found, is it enabled?"
             ) from None
 
     @property
@@ -445,13 +621,167 @@ class BNO08X:
             # clear on read
             if shake_detected:
                 self._readings[BNO_REPORT_SHAKE_DETECTOR] = False
+            return shake_detected
         except KeyError:
             raise RuntimeError("No shake report found, is it enabled?") from None
 
+    @property
+    def stability_classification(self):
+        """Returns the sensor's assessment of it's current stability, one of:
+
+        * "Unknown" - The sensor is unable to classify the current stability
+        * "On Table" - The sensor is at rest on a stable surface with very little vibration
+        * "Stationary" -  The sensor’s motion is below the stable threshold but\
+        the stable duration requirement has not been met. This output is only available when\
+        gyro calibration is enabled
+        * "Stable" - The sensor’s motion has met the stable threshold and duration requirements.
+        * "In motion" - The sensor is moving.
+
+        """
+        self._process_available_packets()
+        try:
+            stability_classification = self._readings[BNO_REPORT_STABILITY_CLASSIFIER]
+            return stability_classification
+        except KeyError:
+            raise RuntimeError(
+                "No stability classification report found, is it enabled?"
+            ) from None
+
+    @property
+    def activity_classification(self):
+        """Returns the sensor's assessment of the activity that is creating the motions\
+        it's sensing, one of:
+
+        * "Unknown"
+        * "In-Vehicle"
+        * "On-Bicycle"
+        * "On-Foot"
+        * "Still"
+        * "Tilting"
+        * "Walking"
+        * "Running"
+        * "On Stairs"
+
+        """
+        self._process_available_packets()
+        try:
+            activity_classification = self._readings[BNO_REPORT_ACTIVITY_CLASSIFIER]
+            return activity_classification
+        except KeyError:
+            raise RuntimeError(
+                "No activity classification report found, is it enabled?"
+            ) from None
+
+    @property
+    def raw_acceleration(self):
+        """Returns the sensor's raw, unscaled value from the accelerometer registers"""
+        self._process_available_packets()
+        try:
+            raw_acceleration = self._readings[BNO_REPORT_RAW_ACCELEROMETER]
+            return raw_acceleration
+        except KeyError:
+            raise RuntimeError(
+                "No raw acceleration report found, is it enabled?"
+            ) from None
+
+    @property
+    def raw_gyro(self):
+        """Returns the sensor's raw, unscaled value from the gyro registers"""
+        self._process_available_packets()
+        try:
+            raw_gyro = self._readings[BNO_REPORT_RAW_GYROSCOPE]
+            return raw_gyro
+        except KeyError:
+            raise RuntimeError("No raw gyro report found, is it enabled?") from None
+
+    @property
+    def raw_magnetic(self):
+        """Returns the sensor's raw, unscaled value from the magnetometer registers"""
+        self._process_available_packets()
+        try:
+            raw_magnetic = self._readings[BNO_REPORT_RAW_MAGNETOMETER]
+            return raw_magnetic
+        except KeyError:
+            raise RuntimeError("No raw magnetic report found, is it enabled?") from None
+
+    def begin_calibration(self):
+        """Begin the sensor's self-calibration routine"""
+        # start calibration for accel, gyro, and mag
+        self._send_me_command(
+            [
+                1,  # calibrate accel
+                1,  # calibrate gyro
+                1,  # calibrate mag
+                _ME_CAL_CONFIG,
+                0,  # calibrate planar acceleration
+                0,  # 'on_table' calibration
+                0,  # reserved
+                0,  # reserved
+                0,  # reserved
+            ]
+        )
+        self._calibration_complete = False
+
+    @property
+    def calibration_status(self):
+        """Get the status of the self-calibration"""
+        self._send_me_command(
+            [
+                0,  # calibrate accel
+                0,  # calibrate gyro
+                0,  # calibrate mag
+                _ME_GET_CAL,
+                0,  # calibrate planar acceleration
+                0,  # 'on_table' calibration
+                0,  # reserved
+                0,  # reserved
+                0,  # reserved
+            ]
+        )
+        return self._magnetometer_accuracy
+
+    def _send_me_command(self, subcommand_params):
+
+        start_time = time.monotonic()
+        local_buffer = self._command_buffer
+        _insert_command_request_report(
+            _ME_CALIBRATE,
+            self._command_buffer,  # should use self._data_buffer :\ but send_packet don't
+            self._get_report_seq_id(_COMMAND_REQUEST),
+            subcommand_params,
+        )
+        self._send_packet(_BNO_CHANNEL_CONTROL, local_buffer)
+        self._increment_report_seq(_COMMAND_REQUEST)
+        while _elapsed(start_time) < _DEFAULT_TIMEOUT:
+            self._process_available_packets()
+            if self._me_calibration_started_at > start_time:
+                break
+
+    def save_calibration_data(self):
+        """Save the self-calibration data"""
+        # send a DCD save command
+        start_time = time.monotonic()
+        local_buffer = bytearray(12)
+        _insert_command_request_report(
+            _SAVE_DCD,
+            local_buffer,  # should use self._data_buffer :\ but send_packet don't
+            self._get_report_seq_id(_COMMAND_REQUEST),
+        )
+        self._send_packet(_BNO_CHANNEL_CONTROL, local_buffer)
+        self._increment_report_seq(_COMMAND_REQUEST)
+        while _elapsed(start_time) < _DEFAULT_TIMEOUT:
+            self._process_available_packets()
+            if self._dcd_saved_at > start_time:
+                return
+        raise RuntimeError("Could not save calibration data")
+
+    ############### private/helper methods ###############
     # # decorator?
-    def _process_available_packets(self):
+    def _process_available_packets(self, max_packets=None):
         processed_count = 0
         while self._data_ready:
+            if max_packets and processed_count > max_packets:
+                return
             # print("reading a packet")
             try:
                 new_packet = self._read_packet()
@@ -533,75 +863,123 @@ class BNO08X:
             self._dbg("\tBuild: %d" % (sw_build_number))
             self._dbg("")
 
+        if report_id == _GET_FEATURE_RESPONSE:
+            get_feature_report = _parse_get_feature_response_report(report_bytes)
+            _report_id, feature_report_id, *_remainder = get_feature_report
+            self._readings[feature_report_id] = _INITIAL_REPORTS.get(
+                feature_report_id, (0.0, 0.0, 0.0)
+            )
+        if report_id == _COMMAND_RESPONSE:
+            self._handle_command_response(report_bytes)
+
+    def _handle_command_response(self, report_bytes):
+        (report_body, response_values) = _parse_command_response(report_bytes)
+
+        # report_id, seq_number, command, command_seq_number, response_seq_number) = report_body
+        _report_id, _sequence_number, command = report_body
+
+        # status, accel_en, gyro_en, mag_en, planar_en, table_en, *_reserved) = response_values
+        command_status, *_rest = response_values
+
+        if command == _ME_CALIBRATE and command_status == 0:
+            self._me_calibration_started_at = time.monotonic()
+
+        if command == _SAVE_DCD:
+            if command_status == 0:
+                self._dcd_saved_at = time.monotonic()
+            else:
+                raise RuntimeError("Unable to save calibration data")
+
     def _process_report(self, report_id, report_bytes):
-        if report_id < 0xF0:
-            self._dbg("\tProcessing report:", reports[report_id])
-            if self._debug:
-                outstr = ""
-                for idx, packet_byte in enumerate(report_bytes):
-                    packet_index = idx
-                    if (packet_index % 4) == 0:
-                        outstr += "\nDBG::\t\t[0x{:02X}] ".format(packet_index)
-                    outstr += "0x{:02X} ".format(packet_byte)
-                print(outstr)
-                self._dbg("")
-
-            if report_id == BNO_REPORT_STEP_COUNTER:
-                self._readings[report_id] = _parse_step_couter_report(report_bytes)
-                return
-            if report_id == BNO_REPORT_SHAKE_DETECTOR:
-                shake_detected = _parse_shake_report(report_bytes)
-                # shake not previously detected - auto cleared by 'shake' property
-                try:
-                    if not self._readings[BNO_REPORT_SHAKE_DETECTOR]:
-                        self._readings[BNO_REPORT_SHAKE_DETECTOR] = shake_detected
-                except KeyError:
-                    pass
-                return
-
-            sensor_data = _parse_sensor_report_data(report_bytes)
-            # TODO: FIXME; Sensor reports are batched in a LIFO which means that multiple reports
-            # for the same type will end with the oldest/last being kept and the other
-            # newer reports thrown away
-            self._readings[report_id] = sensor_data
-        else:
+        if report_id >= 0xF0:
             self._handle_control_report(report_id, report_bytes)
+            return
+        self._dbg("\tProcessing report:", reports[report_id])
+        if self._debug:
+            outstr = ""
+            for idx, packet_byte in enumerate(report_bytes):
+                packet_index = idx
+                if (packet_index % 4) == 0:
+                    outstr += "\nDBG::\t\t[0x{:02X}] ".format(packet_index)
+                outstr += "0x{:02X} ".format(packet_byte)
+            print(outstr)
+            self._dbg("")
+
+        if report_id == BNO_REPORT_STEP_COUNTER:
+            self._readings[report_id] = _parse_step_couter_report(report_bytes)
+            return
+
+        if report_id == BNO_REPORT_SHAKE_DETECTOR:
+            shake_detected = _parse_shake_report(report_bytes)
+            # shake not previously detected - auto cleared by 'shake' property
+            try:
+                if not self._readings[BNO_REPORT_SHAKE_DETECTOR]:
+                    self._readings[BNO_REPORT_SHAKE_DETECTOR] = shake_detected
+            except KeyError:
+                pass
+            return
+
+        if report_id == BNO_REPORT_STABILITY_CLASSIFIER:
+            stability_classification = _parse_stability_classifier_report(report_bytes)
+            self._readings[BNO_REPORT_STABILITY_CLASSIFIER] = stability_classification
+            return
+
+        if report_id == BNO_REPORT_ACTIVITY_CLASSIFIER:
+            activity_classification = _parse_activity_classifier_report(report_bytes)
+            self._readings[BNO_REPORT_ACTIVITY_CLASSIFIER] = activity_classification
+            return
+        sensor_data, accuracy = _parse_sensor_report_data(report_bytes)
+        if report_id == BNO_REPORT_MAGNETOMETER:
+            self._magnetometer_accuracy = accuracy
+        # TODO: FIXME; Sensor reports are batched in a LIFO which means that multiple reports
+        # for the same type will end with the oldest/last being kept and the other
+        # newer reports thrown away
+        self._readings[report_id] = sensor_data
 
     # TODO: Make this a Packet creation
     @staticmethod
     def _get_feature_enable_report(
-        feature_id, report_interval=_DEFAULT_REPORT_INTERVAL
+        feature_id, report_interval=_DEFAULT_REPORT_INTERVAL, sensor_specific_config=0
     ):
         # TODO !!! ALLOCATION !!!
         set_feature_report = bytearray(17)
-        set_feature_report[0] = _BNO_CMD_SET_FEATURE_COMMAND
+        set_feature_report[0] = _SET_FEATURE_COMMAND
         set_feature_report[1] = feature_id
         pack_into("<I", set_feature_report, 5, report_interval)
+        pack_into("<I", set_feature_report, 13, sensor_specific_config)
+
         return set_feature_report
 
     # TODO: add docs for available features
+    # TODO2: I think this should call an fn that imports all the bits for the given feature
+    # so we're not carrying around  stuff for extra features
     def enable_feature(self, feature_id):
         """Used to enable a given feature of the BNO08x"""
         self._dbg("\n********** Enabling feature id:", feature_id, "**********")
 
-        set_feature_report = self._get_feature_enable_report(feature_id)
-        # print("Enabling", feature_id)
-        self._send_packet(_BNO_CHANNEL_CONTROL, set_feature_report)
-        while True:
-            packet = self._wait_for_packet_type(
-                _BNO_CHANNEL_CONTROL, _BNO_CMD_GET_FEATURE_RESPONSE
+        if feature_id == BNO_REPORT_ACTIVITY_CLASSIFIER:
+            set_feature_report = self._get_feature_enable_report(
+                feature_id, sensor_specific_config=_ENABLED_ACTIVITIES
             )
+        else:
+            set_feature_report = self._get_feature_enable_report(feature_id)
 
-            if packet.data[1] == feature_id:
-                if (
-                    feature_id == BNO_REPORT_ROTATION_VECTOR
-                ):  # check for other vector types as well
-                    self._readings[feature_id] = (0.0, 0.0, 0.0, 0.0)
-                else:
-                    self._readings[feature_id] = (0.0, 0.0, 0.0)
-                # print("Enabled", feature_id)
-                break
-            raise RuntimeError("Was not able to enable feature", feature_id)
+        feature_dependency = _RAW_REPORTS.get(feature_id, None)
+        # if the feature was enabled it will have a key in the readings dict
+        if feature_dependency and feature_dependency not in self._readings:
+            self._dbg("Enabling feature depencency:", feature_dependency)
+            self.enable_feature(feature_dependency)
+
+        print("Enabling", feature_id)
+        self._send_packet(_BNO_CHANNEL_CONTROL, set_feature_report)
+
+        start_time = time.monotonic()  # 1
+
+        while _elapsed(start_time) < _FEATURE_ENABLE_TIMEOUT:
+            self._process_available_packets(max_packets=10)
+            if feature_id in self._readings:
+                return
+        raise RuntimeError("Was not able to enable feature", feature_id)
 
     def _check_id(self):
         self._dbg("\n********** READ ID **********")
@@ -698,5 +1076,9 @@ class BNO08X:
     def _read_packet(self):
         raise RuntimeError("Not implemented")
 
-    def _send_packet(self, channel, data):
-        raise RuntimeError("Not implemented")
+    def _increment_report_seq(self, report_id):
+        current = self._two_ended_sequence_numbers.get(report_id, 0)
+        self._two_ended_sequence_numbers[report_id] = (current + 1) % 256
+
+    def _get_report_seq_id(self, report_id):
+        return self._two_ended_sequence_numbers.get(report_id, 0)
