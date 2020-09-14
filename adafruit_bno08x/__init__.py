@@ -68,6 +68,7 @@ _COMMAND_RESPONSE = const(0xF1)
 _SAVE_DCD = const(0x6)
 _ME_CALIBRATE = const(0x7)
 _ME_CAL_CONFIG = const(0x00)
+_ME_GET_CAL = const(0x01)
 
 # Calibrated Acceleration (m/s2)
 BNO_REPORT_ACCELEROMETER = const(0x01)
@@ -179,7 +180,12 @@ PacketHeader = namedtuple(
     ["channel_number", "sequence_number", "data_length", "packet_byte_count",],
 )
 
-REPORT_STATUS = ["Unreliable", "Accuracy low", "Accuracy medium", "Accuracy high"]
+REPORT_ACCURACY_STATUS = [
+    "Accuracy Unreliable",
+    "Low Accuracy",
+    "Medium Accuracy",
+    "High Accuracy",
+]
 
 
 class PacketError(Exception):
@@ -218,14 +224,17 @@ def _parse_sensor_report_data(report_bytes):
     else:
         format_str = "<h"
     results = []
+    accuracy = unpack_from("<B", report_bytes, offset=2)[0]
+    accuracy &= 0b11
 
     for _offset_idx in range(count):
         total_offset = data_offset + (_offset_idx * 2)
         raw_data = unpack_from(format_str, report_bytes, offset=total_offset)[0]
         scaled_data = raw_data * scalar
         results.append(scaled_data)
+    results_tuple = tuple(results)
 
-    return tuple(results)
+    return (results_tuple, accuracy)
 
 
 def _parse_step_couter_report(report_bytes):
@@ -336,7 +345,7 @@ def _insert_command_request_report(
         return
 
     for idx, param in enumerate(command_params):
-        buffer[4 + 3 + idx] = param
+        buffer[3 + idx] = param
 
 
 def _report_length(report_id):
@@ -477,7 +486,7 @@ class Packet:
         return False
 
 
-class BNO08X:
+class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-methods
     """Library for the BNO08x IMUs from Hillcrest Laboratories
 
         :param ~busio.I2C i2c_bus: The I2C bus the BNO08x is connected to.
@@ -500,8 +509,8 @@ class BNO08X:
         }
         self._dcd_saved_at = -1
         self._me_calibration_started_at = -1
-        # self._sequence_number = {"in": [0, 0, 0, 0, 0, 0], "out": [0, 0, 0, 0, 0, 0]}
-        # sef
+        self._calibration_complete = False
+        self._magnetometer_accuracy = 0
         self._wait_for_initialize = True
         self._init_complete = False
         self._id_read = False
@@ -696,6 +705,7 @@ class BNO08X:
             raise RuntimeError("No raw magnetic report found, is it enabled?") from None
 
     def begin_calibration(self):
+        """Begin the sensor's self-calibration routine"""
         # start calibration for accel, gyro, and mag
         self._send_me_command(
             [
@@ -710,6 +720,25 @@ class BNO08X:
                 0,  # reserved
             ]
         )
+        self._calibration_complete = False
+
+    @property
+    def calibration_status(self):
+        """Get the status of the self-calibration"""
+        self._send_me_command(
+            [
+                0,  # calibrate accel
+                0,  # calibrate gyro
+                0,  # calibrate mag
+                _ME_GET_CAL,
+                0,  # calibrate planar acceleration
+                0,  # 'on_table' calibration
+                0,  # reserved
+                0,  # reserved
+                0,  # reserved
+            ]
+        )
+        return self._magnetometer_accuracy
 
     def _send_me_command(self, subcommand_params):
 
@@ -718,7 +747,7 @@ class BNO08X:
         _insert_command_request_report(
             _ME_CALIBRATE,
             self._command_buffer,  # should use self._data_buffer :\ but send_packet don't
-            self.get_report_seq_id(_COMMAND_REQUEST),
+            self._get_report_seq_id(_COMMAND_REQUEST),
             subcommand_params,
         )
         self._send_packet(_BNO_CHANNEL_CONTROL, local_buffer)
@@ -727,53 +756,32 @@ class BNO08X:
             self._process_available_packets()
             if self._me_calibration_started_at > start_time:
                 break
-        print("ME Started?")
 
     def save_calibration_data(self):
+        """Save the self-calibration data"""
         # send a DCD save command
-        # _COMMAND_REQUEST = const(0xF2)
-        # _COMMAND_RESPONSE = const(0xF1)
         start_time = time.monotonic()
         local_buffer = bytearray(12)
         _insert_command_request_report(
             _SAVE_DCD,
             local_buffer,  # should use self._data_buffer :\ but send_packet don't
-            self.get_report_seq_id(_COMMAND_REQUEST),
+            self._get_report_seq_id(_COMMAND_REQUEST),
         )
         self._send_packet(_BNO_CHANNEL_CONTROL, local_buffer)
         self._increment_report_seq(_COMMAND_REQUEST)
         while _elapsed(start_time) < _DEFAULT_TIMEOUT:
             self._process_available_packets()
             if self._dcd_saved_at > start_time:
-                break
-        print("DCD SAVED?")
-        # Byte Description
-        # 0 Report ID = 0xF2
-        # 1 Sequence number
-        # 2 Command
-        # P0-9: a set of command-specific parameters. The interpretation of these
-        # parameters is defined for each command.
-        # 3 P0
-        # 4 P1
-        # 5 P2
-        # 6 P3
-        # 7 P4
-        # 8 P5
-        # 9 P6
-        # 10 P7
-        # 11 P8
-
-        # poll on DCD calibration status
-
-        # TODO: Make this a Packet creation
-
-        self._increment_report_seq(_COMMAND_REQUEST)
+                return
+        raise RuntimeError("Could not save calibration data")
 
     ############### private/helper methods ###############
     # # decorator?
-    def _process_available_packets(self):
+    def _process_available_packets(self, max_packets=None):
         processed_count = 0
         while self._data_ready:
+            if max_packets and processed_count > max_packets:
+                return
             # print("reading a packet")
             try:
                 new_packet = self._read_packet()
@@ -866,15 +874,18 @@ class BNO08X:
 
     def _handle_command_response(self, report_bytes):
         (report_body, response_values) = _parse_command_response(report_bytes)
-        print(
-            "report id: %x sequence number: %x command: %x command sequence number: %x response sequence number: %x"
-            % report_body
-        )
-        report_id, sequence_number, command, command_sequence_number = report_body
-        if command == _ME_CALIBRATE:
+
+        # report_id, seq_number, command, command_seq_number, response_seq_number) = report_body
+        _report_id, _sequence_number, command = report_body
+
+        # status, accel_en, gyro_en, mag_en, planar_en, table_en, *_reserved) = response_values
+        command_status, *_rest = response_values
+
+        if command == _ME_CALIBRATE and command_status == 0:
             self._me_calibration_started_at = time.monotonic()
+
         if command == _SAVE_DCD:
-            if response_values[0] == 0:
+            if command_status == 0:
                 self._dcd_saved_at = time.monotonic()
             else:
                 raise RuntimeError("Unable to save calibration data")
@@ -917,9 +928,9 @@ class BNO08X:
             activity_classification = _parse_activity_classifier_report(report_bytes)
             self._readings[BNO_REPORT_ACTIVITY_CLASSIFIER] = activity_classification
             return
-
-        sensor_data = _parse_sensor_report_data(report_bytes)
-
+        sensor_data, accuracy = _parse_sensor_report_data(report_bytes)
+        if report_id == BNO_REPORT_MAGNETOMETER:
+            self._magnetometer_accuracy = accuracy
         # TODO: FIXME; Sensor reports are batched in a LIFO which means that multiple reports
         # for the same type will end with the oldest/last being kept and the other
         # newer reports thrown away
@@ -965,7 +976,7 @@ class BNO08X:
         start_time = time.monotonic()  # 1
 
         while _elapsed(start_time) < _FEATURE_ENABLE_TIMEOUT:
-            self._process_available_packets()
+            self._process_available_packets(max_packets=10)
             if feature_id in self._readings:
                 return
         raise RuntimeError("Was not able to enable feature", feature_id)
@@ -1070,4 +1081,4 @@ class BNO08X:
         self._two_ended_sequence_numbers[report_id] = (current + 1) % 256
 
     def _get_report_seq_id(self, report_id):
-        return self._two_ended_sequence_numbers[report_id]
+        return self._two_ended_sequence_numbers.get(report_id, 0)
