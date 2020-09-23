@@ -1,18 +1,15 @@
 # SPDX-FileCopyrightText: 2020 Bryan Siepert, written for Adafruit Industries
 #
-# SPDX-License-Identifier: Unlicense
+# SPDX-License-Identifier: MIT
 import time
 import board
 import busio
-from digitalio import DigitalInOut
 import adafruit_bno08x
 from adafruit_bno08x.i2c import BNO08X_I2C
 
 i2c = busio.I2C(board.SCL, board.SDA, frequency=800000)
-reset_pin = DigitalInOut(board.D5)
-bno = BNO08X_I2C(i2c, reset=reset_pin, debug=False)
+bno = BNO08X_I2C(i2c)
 
-# TODO: UPDATE UART/SPI
 bno.enable_feature(adafruit_bno08x.BNO_REPORT_ACCELEROMETER)
 bno.enable_feature(adafruit_bno08x.BNO_REPORT_GYROSCOPE)
 bno.enable_feature(adafruit_bno08x.BNO_REPORT_MAGNETOMETER)
