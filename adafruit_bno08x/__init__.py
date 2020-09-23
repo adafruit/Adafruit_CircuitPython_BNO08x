@@ -1,3 +1,4 @@
+# pylint:disable=too-many-lines
 # SPDX-FileCopyrightText: Copyright (c) 2020 Bryan Siepert for Adafruit Industries
 #
 # SPDX-License-Identifier: MIT
@@ -196,20 +197,6 @@ class PacketError(Exception):
 
 def _elapsed(start_time):
     return time.monotonic() - start_time
-
-
-def elapsed_time(func):
-    """Print the runtime of the decorated function"""
-
-    def wrapper_timer(*args, **kwargs):
-        start_time = time.monotonic()  # 1
-        value = func(*args, **kwargs)
-        end_time = time.monotonic()  # 2
-        run_time = end_time - start_time  # 3
-        print("Finished", func.__name__, "in", (run_time * 1000.0), "ms")
-        return value
-
-    return wrapper_timer
 
 
 ############ PACKET PARSING ###########################
@@ -520,9 +507,15 @@ class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-m
 
     def initialize(self):
         """Initialize the sensor"""
-        self.hard_reset()
-        self.soft_reset()
-        if not self._check_id():
+        for _ in range(3):
+            self.hard_reset()
+            self.soft_reset()
+            try:
+                if self._check_id():
+                    break
+            except:  # pylint:disable=bare-except
+                time.sleep(0.5)
+        else:
             raise RuntimeError("Could not read ID")
 
     @property
@@ -792,7 +785,6 @@ class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-m
             self._dbg("")
             # print("Processed", processed_count, "packets")
             self._dbg("")
-            # we'll probably need an exit here for fast sensor rates
         self._dbg("")
         self._dbg(" ** DONE! **")
 
@@ -875,8 +867,13 @@ class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-m
     def _handle_command_response(self, report_bytes):
         (report_body, response_values) = _parse_command_response(report_bytes)
 
-        # report_id, seq_number, command, command_seq_number, response_seq_number) = report_body
-        _report_id, _sequence_number, command = report_body
+        (
+            _report_id,
+            _seq_number,
+            command,
+            _command_seq_number,
+            _response_seq_number,
+        ) = report_body
 
         # status, accel_en, gyro_en, mag_en, planar_en, table_en, *_reserved) = response_values
         command_status, *_rest = response_values
@@ -902,7 +899,7 @@ class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-m
                 if (packet_index % 4) == 0:
                     outstr += "\nDBG::\t\t[0x{:02X}] ".format(packet_index)
                 outstr += "0x{:02X} ".format(packet_byte)
-            print(outstr)
+            self._dbg(outstr)
             self._dbg("")
 
         if report_id == BNO_REPORT_STEP_COUNTER:
@@ -941,7 +938,6 @@ class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-m
     def _get_feature_enable_report(
         feature_id, report_interval=_DEFAULT_REPORT_INTERVAL, sensor_specific_config=0
     ):
-        # TODO !!! ALLOCATION !!!
         set_feature_report = bytearray(17)
         set_feature_report[0] = _SET_FEATURE_COMMAND
         set_feature_report[1] = feature_id
@@ -970,7 +966,7 @@ class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-m
             self._dbg("Enabling feature depencency:", feature_dependency)
             self.enable_feature(feature_dependency)
 
-        print("Enabling", feature_id)
+        self._dbg("Enabling", feature_id)
         self._send_packet(_BNO_CHANNEL_CONTROL, set_feature_report)
 
         start_time = time.monotonic()  # 1
@@ -1040,7 +1036,6 @@ class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-m
         """Hardware reset the sensor to an initial unconfigured state"""
         if not self._reset:
             return
-        # print("Hard resetting...")
         import digitalio  # pylint:disable=import-outside-toplevel
 
         self._reset.direction = digitalio.Direction.OUTPUT
@@ -1049,11 +1044,11 @@ class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-m
         self._reset.value = False
         time.sleep(0.01)
         self._reset.value = True
-        time.sleep(0.5)
+        time.sleep(0.01)
 
     def soft_reset(self):
         """Reset the sensor to an initial unconfigured state"""
-        print("Soft resetting...", end="")
+        self._dbg("Soft resetting...", end="")
         data = bytearray(1)
         data[0] = 1
         _seq = self._send_packet(BNO_CHANNEL_EXE, data)
@@ -1067,7 +1062,7 @@ class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-m
             except PacketError:
                 time.sleep(0.5)
 
-        print("OK!")
+        self._dbg("OK!")
         # all is good!
 
     def _send_packet(self, channel, data):

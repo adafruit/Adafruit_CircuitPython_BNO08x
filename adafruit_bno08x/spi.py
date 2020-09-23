@@ -11,7 +11,7 @@ from struct import pack_into
 
 from digitalio import Direction, Pull
 import adafruit_bus_device.spi_device as spi_device
-from . import BNO08X, BNO_CHANNEL_EXE, DATA_BUFFER_SIZE, _elapsed, Packet, PacketError
+from . import BNO08X, DATA_BUFFER_SIZE, _elapsed, Packet, PacketError
 
 
 class BNO08X_SPI(BNO08X):
@@ -31,24 +31,21 @@ class BNO08X_SPI(BNO08X):
     # """
 
     def __init__(
-        self, spi_bus, cspin, intpin, wakepin, resetpin, baudrate=4000000, debug=False
+        self, spi_bus, cspin, intpin, resetpin, baudrate=1000000, debug=False
     ):  # pylint:disable=too-many-arguments
         self._spi = spi_device.SPIDevice(
             spi_bus, cspin, baudrate=baudrate, polarity=1, phase=1
         )
         self._int = intpin
-        self._wake = wakepin
         super().__init__(resetpin, debug)
 
     def hard_reset(self):
         """Hardware reset the sensor to an initial unconfigured state"""
         self._reset.direction = Direction.OUTPUT
-        self._wake.direction = Direction.OUTPUT
         self._int.direction = Direction.INPUT
         self._int.pull = Pull.UP
 
         print("Hard resetting...")
-        self._wake.value = True  # set PS0 high (PS1 also must be tied high)
         self._reset.value = True  # perform hardware reset
         time.sleep(0.01)
         self._reset.value = False
@@ -65,31 +62,32 @@ class BNO08X_SPI(BNO08X):
             if not self._int.value:
                 break
         else:
-            raise RuntimeError("Could not wake up")
+            self.hard_reset()
+            # raise RuntimeError("Could not wake up")
         # print("OK")
 
     def soft_reset(self):
         """Reset the sensor to an initial unconfigured state"""
-        print("Soft resetting...", end="")
-        data = bytearray(1)
-        data[0] = 1
-        _seq = self._send_packet(BNO_CHANNEL_EXE, data)
-        time.sleep(0.5)
+        # print("Soft resetting...", end="")
+        # data = bytearray(1)
+        # data[0] = 1
+        # _seq = self._send_packet(BNO_CHANNEL_EXE, data)
+        # time.sleep(0.5)
 
         for _i in range(3):
             try:
                 _packet = self._read_packet()
             except PacketError:
-                time.sleep(0.5)
-        print("OK!")
+                time.sleep(0.1)
+        # print("OK!")
         # all is good!
 
     def _read_into(self, buf, start=0, end=None):
         self._wait_for_int()
 
         with self._spi as spi:
-            spi.readinto(buf, start=start, end=end)
-        # print("SPI Read buffer: ", [hex(i) for i in buf[start:end]])
+            spi.readinto(buf, start=start, end=end, write_value=0x00)
+        # print("SPI Read buffer (", end-start, "b )", [hex(i) for i in buf[start:end]])
 
     def _read_header(self):
         """Reads the first 4 bytes available as a header"""
@@ -97,14 +95,17 @@ class BNO08X_SPI(BNO08X):
 
         # read header
         with self._spi as spi:
-            spi.readinto(self._data_buffer, end=4)
+            spi.readinto(self._data_buffer, end=4, write_value=0x00)
         self._dbg("")
-        # print("SHTP READ packet header: ", [hex(x) for x in self._data_buffer[0:4]])
+        self._dbg("SHTP READ packet header: ", [hex(x) for x in self._data_buffer[0:4]])
 
     def _read_packet(self):
         self._read_header()
+        halfpacket = False
 
-        # print([hex(x) for x in self._data_buffer[0:4]])
+        print([hex(x) for x in self._data_buffer[0:4]])
+        if self._data_buffer[1] & 0x80:
+            halfpacket = True
         header = Packet.header_from_buffer(self._data_buffer)
         packet_byte_count = header.packet_byte_count
         channel_number = header.channel_number
@@ -126,6 +127,8 @@ class BNO08X_SPI(BNO08X):
         self._read_into(self._data_buffer, start=0, end=packet_byte_count)
         # print("Packet: ", [hex(i) for i in self._data_buffer[0:packet_byte_count]])
 
+        if halfpacket:
+            raise PacketError("read partial packet")
         new_packet = Packet(self._data_buffer)
         if self._debug:
             print(new_packet)
@@ -158,7 +161,7 @@ class BNO08X_SPI(BNO08X):
         self._wait_for_int()
         with self._spi as spi:
             spi.write(self._data_buffer, end=write_length)
-        # print("Sending: ", [hex(x) for x in self._data_buffer[0:write_length]])
+        self._dbg("Sending: ", [hex(x) for x in self._data_buffer[0:write_length]])
         self._sequence_number[channel] = (self._sequence_number[channel] + 1) % 256
         return self._sequence_number[channel]
 
