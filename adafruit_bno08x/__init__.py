@@ -643,7 +643,7 @@ class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-m
     @property
     def activity_classification(self):
         """Returns the sensor's assessment of the activity that is creating the motions\
-        it's sensing, one of:
+        that it is sensing, one of:
 
         * "Unknown"
         * "In-Vehicle"
