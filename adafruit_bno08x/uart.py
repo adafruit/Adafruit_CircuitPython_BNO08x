@@ -21,7 +21,7 @@ from . import (
 class BNO08X_UART(BNO08X):
     """Library for the BNO08x IMUs from Hillcrest Laboratories
 
-        :param uart: The UART devce the BNO08x is connected to.
+    :param uart: The UART devce the BNO08x is connected to.
 
     """
 
