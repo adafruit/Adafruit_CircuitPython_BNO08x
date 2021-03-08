@@ -16,7 +16,7 @@ _BNO08X_DEFAULT_ADDRESS = const(0x4A)
 class BNO08X_I2C(BNO08X):
     """Library for the BNO08x IMUs from Hillcrest Laboratories
 
-        :param ~busio.I2C i2c_bus: The I2C bus the BNO08x is connected to.
+    :param ~busio.I2C i2c_bus: The I2C bus the BNO08x is connected to.
 
     """
 

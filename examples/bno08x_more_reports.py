@@ -103,7 +103,11 @@ while True:
     )
 
     print("Raw Acceleration:")
-    (raw_accel_x, raw_accel_y, raw_accel_z,) = bno.raw_acceleration
+    (
+        raw_accel_x,
+        raw_accel_y,
+        raw_accel_z,
+    ) = bno.raw_acceleration
     print(
         "X: 0x{0:04X}  Y: 0x{1:04X} Z: 0x{2:04X} LSB".format(
             raw_accel_x, raw_accel_y, raw_accel_z
@@ -112,7 +116,11 @@ while True:
     print("")
 
     print("Raw Gyro:")
-    (raw_accel_x, raw_accel_y, raw_accel_z,) = bno.raw_gyro
+    (
+        raw_accel_x,
+        raw_accel_y,
+        raw_accel_z,
+    ) = bno.raw_gyro
     print(
         "X: 0x{0:04X}  Y: 0x{1:04X} Z: 0x{2:04X} LSB".format(
             raw_accel_x, raw_accel_y, raw_accel_z
@@ -121,7 +129,11 @@ while True:
     print("")
 
     print("Raw Magnetometer:")
-    (raw_mag_x, raw_mag_y, raw_mag_z,) = bno.raw_magnetic
+    (
+        raw_mag_x,
+        raw_mag_y,
+        raw_mag_z,
+    ) = bno.raw_magnetic
     print(
         "X: 0x{0:04X}  Y: 0x{1:04X} Z: 0x{2:04X} LSB".format(
             raw_mag_x, raw_mag_y, raw_mag_z

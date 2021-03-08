@@ -180,7 +180,12 @@ _ENABLED_ACTIVITIES = (
 DATA_BUFFER_SIZE = const(512)  # data buffer size. obviously eats ram
 PacketHeader = namedtuple(
     "PacketHeader",
-    ["channel_number", "sequence_number", "data_length", "packet_byte_count",],
+    [
+        "channel_number",
+        "sequence_number",
+        "data_length",
+        "packet_byte_count",
+    ],
 )
 
 REPORT_ACCURACY_STATUS = [
@@ -478,7 +483,7 @@ class Packet:
 class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-methods
     """Library for the BNO08x IMUs from Hillcrest Laboratories
 
-        :param ~busio.I2C i2c_bus: The I2C bus the BNO08x is connected to.
+    :param ~busio.I2C i2c_bus: The I2C bus the BNO08x is connected to.
 
     """
 
