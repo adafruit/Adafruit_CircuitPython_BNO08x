@@ -8,7 +8,7 @@ from busio import I2C
 from adafruit_bno08x import (
     BNO_REPORT_STEP_COUNTER,
     BNO_REPORT_ROTATION_VECTOR,
-    BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR
+    BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR,
 )
 from adafruit_bno08x.i2c import BNO08X_I2C
 
@@ -22,11 +22,11 @@ bno.enable_feature(BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR)
 
 
 def find_heading(dqw, dqx, dqy, dqz):
-    norm = sqrt(dqw*dqw + dqx*dqx + dqy*dqy + dqz*dqz)
-    dqw = dqw/norm
-    dqx = dqx/norm
-    dqy = dqy/norm
-    dqz = dqz/norm
+    norm = sqrt(dqw * dqw + dqx * dqx + dqy * dqy + dqz * dqz)
+    dqw = dqw / norm
+    dqx = dqx / norm
+    dqy = dqy / norm
+    dqz = dqz / norm
 
     ysqr = dqy * dqy
 
@@ -49,8 +49,7 @@ while True:
     # the geomagnetic sensor is unstable
     # Heading is calculated using geomagnetic vector
     geo_quat_i, geo_quat_j, geo_quat_k, geo_quat_real = bno.geomagnetic_quaternion
-    heading_geo = find_heading(
-        geo_quat_real, geo_quat_i, geo_quat_j, geo_quat_k)
+    heading_geo = find_heading(geo_quat_real, geo_quat_i, geo_quat_j, geo_quat_k)
     print("Heading using geomagnetic rotation vector:", heading_geo)
     print("")
     time.sleep(0.1)
