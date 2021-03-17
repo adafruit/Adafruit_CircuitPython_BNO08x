@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2021 KC YUGESH
+# SPDX-License-Identifier: Unlicense
+
 import time
 from math import atan2, sqrt, pi
 from board import SCL, SDA
@@ -51,4 +54,3 @@ while True:
     print("Heading using geomagnetic rotation vector:", heading_geo)
     print("")
     time.sleep(0.1)
-
