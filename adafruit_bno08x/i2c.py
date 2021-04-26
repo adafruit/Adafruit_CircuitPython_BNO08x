@@ -36,6 +36,7 @@ class BNO08X_I2C(BNO08X):
 
         .. code-block:: python
 
+           # The sensor can communicate over I2C at 400kHz if you need the higher speed.
             i2c = busio.I2C(board.SCL, board.SDA, frequency=400000)
             bno = BNO08X_I2C(i2c)
 
