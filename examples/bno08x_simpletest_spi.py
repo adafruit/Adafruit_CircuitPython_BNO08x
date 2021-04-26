@@ -6,7 +6,7 @@ import board
 from digitalio import DigitalInOut, Direction
 from adafruit_bno08x.spi import BNO08X_SPI
 
-# need to limit clock to 3Mhz
+# need to limit clock to 3MHz
 spi = board.SPI()
 
 cs = DigitalInOut(board.D5)
