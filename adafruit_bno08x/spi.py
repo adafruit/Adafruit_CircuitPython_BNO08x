@@ -21,7 +21,7 @@ class BNO08X_SPI(BNO08X):
     :param ~busio.SPI spi_bus: The SPI bus to use to communicate with the BNO08x
     :param ~digitalio.DigitalInOut cspin: The pin object to use for the SPI Chip Select
     :param ~digitalio.DigitalInOut intpin: The pin object to interrupt
-    :param ~digitalio.DigitalInOut resetpin: The pin object to reset
+    :param ~digitalio.DigitalInOut resetpin: Required for SPI mode. Connected to the RST pin on the device, and used to hard-reset the device.
     :param int baudrate: baudrate of the SPI bus. Defaults to :const:`1000000`
     :param bool debug: Enables print statements used for debugging. Defaults to `False`
 
