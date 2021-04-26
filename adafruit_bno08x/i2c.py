@@ -16,7 +16,7 @@ class BNO08X_I2C(BNO08X):
     """Library for the BNO08x IMUs from Hillcrest Laboratories
 
     :param ~busio.I2C i2c_bus: The I2C bus the BNO08x is connected to.
-    :param ~digitalio.DigitalInOut reset: The pin object to reset
+    :param ~digitalio.DigitalInOut reset: Optional for I2C use. Connected to the RST pin; used to hard-reset the device.
     :param int address: The I2C device address. Defaults to :const:`0x4A`
     :param bool debug: Enables print statements used for debugging. Defaults to `False`
 
