@@ -2,9 +2,8 @@
 #
 # SPDX-License-Identifier: MIT
 """
-
-    Subclass of `adafruit_bno08x.BNO08X` to use SPI
-
+Subclass of `adafruit_bno08x.BNO08X` to use SPI
+================================================
 """
 import time
 from struct import pack_into
@@ -15,20 +14,54 @@ from . import BNO08X, DATA_BUFFER_SIZE, _elapsed, Packet, PacketError
 
 
 class BNO08X_SPI(BNO08X):
-    """Instantiate a `adafruit_bno08x.BNO08X_SPI` instance to communicate with
+    """
+    Instantiate a `adafruit_bno08x.spi.BNO08X_SPI` instance to communicate with
     the sensor using SPI
 
-    Args:
-        spi_bus ([busio.SPI]): The SPI bus to use to communicate with the BNO08x
-        cs_pin ([digitalio.DigitalInOut]): The pin object to use for the SPI Chip Select
-        debug (bool, optional): Enables print statements used for debugging. Defaults to False.
+    :param ~busio.SPI spi_bus: The SPI bus to use to communicate with the BNO08x
+    :param ~digitalio.DigitalInOut cspin: The pin object to use for the SPI Chip Select
+    :param ~digitalio.DigitalInOut intpin: The pin object to interrupt
+    :param ~digitalio.DigitalInOut resetpin: The pin object to reset
+    :param int baudrate: baudrate of the SPI bus. Defaults to :const:`1000000`
+    :param bool debug: Enables print statements used for debugging. Defaults to `False`
+
+    **Quickstart: Importing and using the device**
+
+        Here is an example of using the :class:`BNO08X_SPI` class.
+        First you will need to import the libraries to use the sensor
+
+        .. code-block:: python
+
+            import board
+            from adafruit_bno08x.spi import BNO08X_SPI
+
+        Once this is done you can define your `board.SPI` object and define your sensor object
+
+        .. code-block:: python
+
+            spi = board.SPI()
+            bno = BNO08X_SPI(spi)
+
+        For this particular you need to define some things to get some data.
+
+        .. code-block:: python
+
+            bno.enable_feature(adafruit_bno08x.BNO_REPORT_ACCELEROMETER)
+            bno.enable_feature(adafruit_bno08x.BNO_REPORT_GYROSCOPE)
+            bno.enable_feature(adafruit_bno08x.BNO_REPORT_MAGNETOMETER)
+            bno.enable_feature(adafruit_bno08x.BNO_REPORT_ROTATION_VECTOR)
+
+        Now you have access to the :attr:`acceleration`, :attr:`gyro`
+        :attr:`magnetic` and :attr:`quaternion` attributes
+
+        .. code-block:: python
+
+            accel_x, accel_y, accel_z = bno.acceleration
+            gyro_x, gyro_y, gyro_z = bno.gyro
+            mag_x, mag_y, mag_z = bno.magnetic
+            quat_i, quat_j, quat_k, quat_real = bno.quaternion
+
     """
-
-    # """Library for the BNO08x IMUs from Hillcrest Laboratories
-
-    #     :param ~busio.SPI spi_bus: The SPI bus the BNO08x is connected to.
-
-    # """
 
     def __init__(
         self, spi_bus, cspin, intpin, resetpin, baudrate=1000000, debug=False

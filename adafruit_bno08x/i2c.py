@@ -2,9 +2,8 @@
 #
 # SPDX-License-Identifier: MIT
 """
-
-    Subclass of `adafruit_bno08x.BNO08X` to use I2C
-
+Subclass of `adafruit_bno08x.BNO08X` to use I2C
+===============================================
 """
 from struct import pack_into
 import adafruit_bus_device.i2c_device as i2c_device
@@ -17,6 +16,47 @@ class BNO08X_I2C(BNO08X):
     """Library for the BNO08x IMUs from Hillcrest Laboratories
 
     :param ~busio.I2C i2c_bus: The I2C bus the BNO08x is connected to.
+    :param ~digitalio.DigitalInOut reset: The pin object to reset
+    :param int address: The I2C device address. Defaults to :const:`0x4A`
+    :param bool debug: Enables print statements used for debugging. Defaults to `False`
+
+
+    **Quickstart: Importing and using the device**
+
+        Here is an example of using the :class:`BNO08X_I2C` class.
+        First you will need to import the libraries to use the sensor
+
+        .. code-block:: python
+
+            import board
+            import busio
+            from adafruit_bno08x.i2c import BNO08X_I2C
+
+        Once this is done you can define your `busio.I2C` object and define your sensor object
+
+        .. code-block:: python
+
+            i2c = busio.I2C(board.SCL, board.SDA, frequency=400000)
+            bno = BNO08X_I2C(i2c)
+
+        For this particular you need to define some things to get some data.
+
+        .. code-block:: python
+
+            bno.enable_feature(adafruit_bno08x.BNO_REPORT_ACCELEROMETER)
+            bno.enable_feature(adafruit_bno08x.BNO_REPORT_GYROSCOPE)
+            bno.enable_feature(adafruit_bno08x.BNO_REPORT_MAGNETOMETER)
+            bno.enable_feature(adafruit_bno08x.BNO_REPORT_ROTATION_VECTOR)
+
+        Now you have access to the :attr:`acceleration`, :attr:`gyro`
+        :attr:`magnetic` and :attr:`quaternion` attributes
+
+        .. code-block:: python
+
+            accel_x, accel_y, accel_z = bno.acceleration
+            gyro_x, gyro_y, gyro_z = bno.gyro
+            mag_x, mag_y, mag_z = bno.magnetic
+            quat_i, quat_j, quat_k, quat_real = bno.quaternion
 
     """
 
@@ -59,7 +99,6 @@ class BNO08X_I2C(BNO08X):
         with self.bus_device_obj as i2c:
             i2c.readinto(self._data_buffer, end=4)  # this is expecting a header?
         self._dbg("")
-        # print("SHTP READ packet header: ", [hex(x) for x in self._data_buffer[0:4]])
 
         header = Packet.header_from_buffer(self._data_buffer)
         packet_byte_count = header.packet_byte_count
@@ -117,5 +156,4 @@ class BNO08X_I2C(BNO08X):
         else:
             ready = header.data_length > 0
 
-        # self._dbg("\tdata ready", ready)
         return ready

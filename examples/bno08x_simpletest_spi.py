@@ -3,12 +3,11 @@
 # SPDX-License-Identifier: Unlicense
 from time import sleep
 import board
-import busio
 from digitalio import DigitalInOut, Direction
 from adafruit_bno08x.spi import BNO08X_SPI
 
 # need to limit clock to 3Mhz
-spi = busio.SPI(board.SCK, MISO=board.MISO, MOSI=board.MOSI)
+spi = board.SPI()
 
 cs = DigitalInOut(board.D5)
 cs.direction = Direction.OUTPUT
