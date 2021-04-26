@@ -483,7 +483,7 @@ class Packet:
 class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-methods
     """Library for the BNO08x IMUs from Hillcrest Laboratories
 
-    This sensor could use three different communication buses:
+    This sensor is able to communicate over I2C, SPI, or UART:
 
     * I2C: :class:`adafruit_bno08x.i2c.BNO08X_I2C`
     * SPI: :class:`adafruit_bno08x.spi.BNO08X_SPI`
