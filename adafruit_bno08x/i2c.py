@@ -16,7 +16,8 @@ class BNO08X_I2C(BNO08X):
     """Library for the BNO08x IMUs from Hillcrest Laboratories
 
     :param ~busio.I2C i2c_bus: The I2C bus the BNO08x is connected to.
-    :param ~digitalio.DigitalInOut reset: Optional for I2C use. Connected to the RST pin; used to hard-reset the device.
+    :param ~digitalio.DigitalInOut reset: Optional for I2C use. Connected to the RST pin;
+     used to hard-reset the device.
     :param int address: The I2C device address. Defaults to :const:`0x4A`
     :param bool debug: Enables print statements used for debugging. Defaults to `False`
 
@@ -29,15 +30,14 @@ class BNO08X_I2C(BNO08X):
         .. code-block:: python
 
             import board
-            import busio
             from adafruit_bno08x.i2c import BNO08X_I2C
 
-        Once this is done you can define your `busio.I2C` object and define your sensor object
+        Once this is done you can define your `board.I2C` object and define your sensor object
 
         .. code-block:: python
 
-           # The sensor can communicate over I2C at 400kHz if you need the higher speed.
-            i2c = busio.I2C(board.SCL, board.SDA, frequency=400000)
+            # The sensor can communicate over I2C at 400kHz if you need the higher speed.
+            i2c = board.I2C()
             bno = BNO08X_I2C(i2c)
 
         For this particular you need to define some things to get some data.
