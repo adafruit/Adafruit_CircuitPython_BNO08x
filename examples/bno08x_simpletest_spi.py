@@ -7,7 +7,7 @@ from digitalio import DigitalInOut, Direction
 from adafruit_bno08x.spi import BNO08X_SPI
 
 # need to limit clock to 3MHz
-spi = board.SPI()
+i2c = board.I2C()  # uses board.SCL and board.SDA
 
 cs = DigitalInOut(board.D5)
 cs.direction = Direction.OUTPUT

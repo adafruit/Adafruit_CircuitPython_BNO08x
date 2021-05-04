@@ -64,7 +64,7 @@ Usage Example
     import board
     import adafruit_bno08x
 
-    i2c = board.I2C()
+    i2c = board.I2C()  # uses board.SCL and board.SDA
     bno = adafruit_bno08x.BNO08X(i2c)
 
     while True:

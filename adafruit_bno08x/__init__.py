@@ -16,14 +16,17 @@ Implementation Notes
 
 **Hardware:**
 
-* Adafruit `BNO08x Breakout <https:www.adafruit.com/products/4754>`_
+* `Adafruit 9-DOF Orientation IMU Fusion Breakout
+  <https:www.adafruit.com/products/4754>`_ (Product ID: 4566)
 
 **Software and Dependencies:**
 
 * Adafruit CircuitPython firmware for the supported boards:
   https://circuitpython.org/downloads
 
-* Adafruit's Bus Device library: https://github.com/adafruit/Adafruit_CircuitPython_BusDevice
+* Adafruit's Bus Device library:
+  https://github.com/adafruit/Adafruit_CircuitPython_BusDevice
+
 """
 __version__ = "0.0.0-auto.0"
 __repo__ = "https:# github.com/adafruit/Adafruit_CircuitPython_BNO08x.git"
