@@ -17,7 +17,7 @@ Implementation Notes
 **Hardware:**
 
 * `Adafruit 9-DOF Orientation IMU Fusion Breakout
-  <https:www.adafruit.com/products/4754>`_ (Product ID: 4566)
+  <https://www.adafruit.com/products/4754>`_ (Product ID: 4566)
 
 **Software and Dependencies:**
 
