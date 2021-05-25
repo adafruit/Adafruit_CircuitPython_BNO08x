@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: MIT
 """
 `adafruit_bno08x`
-================================================================================
+=================
 
 Helper library for the Hillcrest Laboratories BNO08x IMUs
 
@@ -16,14 +16,17 @@ Implementation Notes
 
 **Hardware:**
 
-* `Adafruit BNO08x Breakout <https:www.adafruit.com/products/4754>`_
+* `Adafruit 9-DOF Orientation IMU Fusion Breakout
+  <https://www.adafruit.com/products/4754>`_ (Product ID: 4566)
 
 **Software and Dependencies:**
 
 * Adafruit CircuitPython firmware for the supported boards:
-  https:# github.com/adafruit/circuitpython/releases
+  https://circuitpython.org/downloads
 
-* `Adafruit's Bus Device library <https:# github.com/adafruit/Adafruit_CircuitPython_BusDevice>`_
+* Adafruit's Bus Device library:
+  https://github.com/adafruit/Adafruit_CircuitPython_BusDevice
+
 """
 __version__ = "0.0.0-auto.0"
 __repo__ = "https:# github.com/adafruit/Adafruit_CircuitPython_BNO08x.git"
@@ -483,7 +486,11 @@ class Packet:
 class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-methods
     """Library for the BNO08x IMUs from Hillcrest Laboratories
 
-    :param ~busio.I2C i2c_bus: The I2C bus the BNO08x is connected to.
+    This sensor is able to communicate over I2C, SPI, or UART:
+
+    * I2C: :class:`adafruit_bno08x.i2c.BNO08X_I2C`
+    * SPI: :class:`adafruit_bno08x.spi.BNO08X_SPI`
+    * UART: :class:`adafruit_bno08x.uart.BNO08X_UART`
 
     """
 

@@ -8,7 +8,7 @@ from adafruit_ble_adafruit.adafruit_service import AdafruitServerAdvertisement
 from adafruit_ble_adafruit.quaternion_service import QuaternionService
 from adafruit_bno08x import BNO08X
 
-i2c = board.I2C()
+i2c = board.I2C()  # uses board.SCL and board.SDA
 bno = BNO08X(i2c)
 
 quat_svc = QuaternionService()

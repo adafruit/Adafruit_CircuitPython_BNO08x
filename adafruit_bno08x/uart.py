@@ -2,9 +2,8 @@
 #
 # SPDX-License-Identifier: MIT
 """
-
-    Subclass of `adafruit_bno08x.BNO08X` to use UART
-
+Subclass of `adafruit_bno08x.BNO08X` to use UART
+================================================
 """
 import time
 from struct import pack_into
@@ -21,7 +20,48 @@ from . import (
 class BNO08X_UART(BNO08X):
     """Library for the BNO08x IMUs from Hillcrest Laboratories
 
-    :param uart: The UART devce the BNO08x is connected to.
+    :param uart: The UART device the BNO08x is connected to.
+    :param ~digitalio.DigitalInOut reset: The pin object to reset
+    :param bool debug: Enables print statements used for debugging. Defaults to `False`
+
+
+    **Quickstart: Importing and using the device**
+
+        Here is an example of using the :class:`BNO08X_UART` class.
+        First you will need to import the libraries to use the sensor
+
+        .. code-block:: python
+
+            import board
+            import busio
+            from adafruit_bno08x.uart import BNO08X_UART
+
+        Once this is done you can define your `busio.UART` object and define your sensor object
+
+        .. code-block:: python
+
+            uart = busio.UART(board.TX, board.RX, baudrate=3000000, receiver_buffer_size=2048)
+            bno = BNO08X_UART(uart)
+
+        For this particular you need to define some things to get some data.
+
+        .. code-block:: python
+
+            bno.enable_feature(adafruit_bno08x.BNO_REPORT_ACCELEROMETER)
+            bno.enable_feature(adafruit_bno08x.BNO_REPORT_GYROSCOPE)
+            bno.enable_feature(adafruit_bno08x.BNO_REPORT_MAGNETOMETER)
+            bno.enable_feature(adafruit_bno08x.BNO_REPORT_ROTATION_VECTOR)
+
+
+        Now you have access to the :attr:`acceleration`, :attr:`gyro`
+        :attr:`magnetic` and :attr:`quaternion` attributes
+
+        .. code-block:: python
+
+            accel_x, accel_y, accel_z = bno.acceleration
+            gyro_x, gyro_y, gyro_z = bno.gyro
+            mag_x, mag_y, mag_z = bno.magnetic
+            quat_i, quat_j, quat_k, quat_real = bno.quaternion
 
     """
 
