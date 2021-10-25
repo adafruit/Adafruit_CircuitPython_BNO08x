@@ -74,6 +74,11 @@ Usage Example
         accel_x, accel_y, accel_z = bno.acceleration  # pylint:disable=no-member
         print("X: %0.6f  Y: %0.6f Z: %0.6f  m/s^2" % (accel_x, accel_y, accel_z))
 
+Documentation
+=============
+
+API documentation for this library can be found on `Read the Docs <https://circuitpython.readthedocs.io/projects/bno08x/en/latest/>`_.
+
 Contributing
 ============
 
