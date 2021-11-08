@@ -10,7 +10,7 @@ import time
 from struct import pack_into
 
 from digitalio import Direction, Pull
-import adafruit_bus_device.spi_device as spi_device
+from adafruit_bus_device import spi_device
 from . import BNO08X, DATA_BUFFER_SIZE, _elapsed, Packet, PacketError
 
 

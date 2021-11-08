@@ -7,7 +7,7 @@
 
 """
 from struct import pack_into
-import adafruit_bus_device.i2c_device as i2c_device
+from adafruit_bus_device import i2c_device
 from . import BNO08X, DATA_BUFFER_SIZE, const, Packet, PacketError
 
 _BNO08X_DEFAULT_ADDRESS = const(0x4A)
