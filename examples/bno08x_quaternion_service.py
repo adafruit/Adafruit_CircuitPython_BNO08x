@@ -8,7 +8,8 @@ from adafruit_ble_adafruit.adafruit_service import AdafruitServerAdvertisement
 from adafruit_ble_adafruit.quaternion_service import QuaternionService
 from adafruit_bno08x import BNO08X
 
-i2c = board.I2C()
+i2c = board.I2C()  # uses board.SCL and board.SDA
+# i2c = board.STEMMA_I2C()  # For using the built-in STEMMA QT connector on a microcontroller
 bno = BNO08X(i2c)
 
 quat_svc = QuaternionService()
