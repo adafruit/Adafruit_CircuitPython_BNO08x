@@ -6,7 +6,6 @@ from math import atan2, sqrt, pi
 from board import SCL, SDA
 from busio import I2C
 from adafruit_bno08x import (
-    BNO_REPORT_STEP_COUNTER,
     BNO_REPORT_ROTATION_VECTOR,
     BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR,
 )
@@ -14,7 +13,6 @@ from adafruit_bno08x.i2c import BNO08X_I2C
 
 i2c = I2C(SCL, SDA, frequency=800000)
 bno = BNO08X_I2C(i2c)
-bno.enable_feature(BNO_REPORT_STEP_COUNTER)
 bno.enable_feature(BNO_REPORT_ROTATION_VECTOR)
 bno.enable_feature(BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR)
 
