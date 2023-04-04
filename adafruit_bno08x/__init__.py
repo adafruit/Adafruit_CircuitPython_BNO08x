@@ -81,6 +81,9 @@ BNO_REPORT_MAGNETOMETER = const(0x03)
 BNO_REPORT_LINEAR_ACCELERATION = const(0x04)
 # Rotation Vector
 BNO_REPORT_ROTATION_VECTOR = const(0x05)
+# Gravity Vector (m/s2). Vector direction of gravity
+BNO_REPORT_GRAVITY = const(0x06)
+# Game Rotation Vector
 BNO_REPORT_GAME_ROTATION_VECTOR = const(0x08)
 
 BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR = const(0x09)
@@ -139,6 +142,7 @@ _RAW_REPORTS = {
 }
 _AVAIL_SENSOR_REPORTS = {
     BNO_REPORT_ACCELEROMETER: (_Q_POINT_8_SCALAR, 3, 10),
+    BNO_REPORT_GRAVITY: (_Q_POINT_8_SCALAR, 3, 10),
     BNO_REPORT_GYROSCOPE: (_Q_POINT_9_SCALAR, 3, 10),
     BNO_REPORT_MAGNETOMETER: (_Q_POINT_4_SCALAR, 3, 10),
     BNO_REPORT_LINEAR_ACCELERATION: (_Q_POINT_8_SCALAR, 3, 10),
@@ -370,15 +374,6 @@ def _separate_batch(packet, report_slices):
         next_byte_index = next_byte_index + required_bytes
 
 
-# class Report:
-#     _buffer = bytearray(DATA_BUFFER_SIZE)
-#     _report_obj = Report(_buffer)
-
-#     @classmethod
-#     def get_report(cls)
-#         return cls._report_obj
-
-
 class Packet:
     """A class representing a Hillcrest LaboratorySensor Hub Transport packet"""
 
@@ -596,6 +591,16 @@ class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-m
             return self._readings[BNO_REPORT_ACCELEROMETER]
         except KeyError:
             raise RuntimeError("No accel report found, is it enabled?") from None
+
+    @property
+    def gravity(self):
+        """A tuple representing the gravity vector in the X, Y, and Z components
+        axes in meters per second squared"""
+        self._process_available_packets()
+        try:
+            return self._readings[BNO_REPORT_GRAVITY]
+        except KeyError:
+            raise RuntimeError("No gravity report found, is it enabled?") from None
 
     @property
     def gyro(self):
