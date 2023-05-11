@@ -312,7 +312,6 @@ def parse_sensor_id(buffer):
 
 
 def _parse_command_response(report_bytes):
-
     # CMD response report:
     # 0 Report ID = 0xF1
     # 1 Sequence number
@@ -383,7 +382,6 @@ class Packet:
         self.data = packet_bytes[_BNO_HEADER_LEN:data_end_index]
 
     def __str__(self):
-
         length = self.header.packet_byte_count
         outstr = "\n\t\t********** Packet *************\n"
         outstr += "DBG::\t\t HEADER:\n"
@@ -746,7 +744,6 @@ class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-m
         return self._magnetometer_accuracy
 
     def _send_me_command(self, subcommand_params):
-
         start_time = time.monotonic()
         local_buffer = self._command_buffer
         _insert_command_request_report(

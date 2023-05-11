@@ -21,7 +21,6 @@ bno.enable_feature(BNO_REPORT_MAGNETOMETER)
 bno.enable_feature(BNO_REPORT_ROTATION_VECTOR)
 
 while True:
-
     time.sleep(0.5)
     print("Acceleration:")
     accel_x, accel_y, accel_z = bno.acceleration  # pylint:disable=no-member
