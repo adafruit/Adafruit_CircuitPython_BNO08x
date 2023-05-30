@@ -32,12 +32,6 @@ __pycache__
 # Sphinx build-specific files
 _build
 
-# MyPy-specific type-checking files
-.mypy_cache
-
-# pip install files
-/build/
-
 # This file results from running `pip -e install .` in a local repository
 *.egg-info
 

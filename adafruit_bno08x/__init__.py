@@ -41,6 +41,7 @@ from .debug import channels, reports
 # For IDE type recognition
 try:
     from typing import Any, Dict, List, Optional, Tuple, Union
+    from digitalio import DigitalInOut
 except ImportError:
     pass
 
@@ -219,7 +220,7 @@ def _elapsed(start_time: float) -> float:
 
 
 ############ PACKET PARSING ###########################
-def _parse_sensor_report_data(report_bytes: bytearray) -> Tuple[Any, int]:
+def _parse_sensor_report_data(report_bytes: bytearray) -> Tuple[Tuple, int]:
     """Parses reports with only 16-bit fields"""
     data_offset = 4  # this may not always be true
     report_id = report_bytes[0]
@@ -272,7 +273,7 @@ def _parse_get_feature_response_report(report_bytes: bytearray) -> Tuple[Any, ..
 # 4 Page Number + EOS
 # 5 Most likely state
 # 6-15 Classification (10 x Page Number) + confidence
-def _parse_activity_classifier_report(report_bytes: bytearray) -> Dict[str, int]:
+def _parse_activity_classifier_report(report_bytes: bytearray) -> Dict[str, str]:
     activities = [
         "Unknown",
         "In-Vehicle",  # look
@@ -491,9 +492,11 @@ class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-m
 
     """
 
-    def __init__(self, reset: Optional[dict] = None, debug: bool = False) -> None:
+    def __init__(
+        self, reset: Optional[DigitalInOut] = None, debug: bool = False
+    ) -> None:
         self._debug: bool = debug
-        self._reset: Optional[dict] = reset
+        self._reset: Optional[DigitalInOut] = reset
         self._dbg("********** __init__ *************")
         self._data_buffer: bytearray = bytearray(DATA_BUFFER_SIZE)
         self._command_buffer: bytearray = bytearray(12)
@@ -503,7 +506,7 @@ class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-m
         self._sequence_number: List[int] = [0, 0, 0, 0, 0, 0]
         self._two_ended_sequence_numbers: Dict[int, int] = {}
         self._dcd_saved_at: float = -1
-        self._me_calibration_started_at: float = -1
+        self._me_calibration_started_at: float = -1.0
         self._calibration_complete = False
         self._magnetometer_accuracy = 0
         self._wait_for_initialize = True
@@ -956,7 +959,7 @@ class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-m
     @staticmethod
     def _get_feature_enable_report(
         feature_id: int,
-        report_interval: Any = _DEFAULT_REPORT_INTERVAL,
+        report_interval: int = _DEFAULT_REPORT_INTERVAL,
         sensor_specific_config: int = 0,
     ) -> bytearray:
         set_feature_report = bytearray(17)
