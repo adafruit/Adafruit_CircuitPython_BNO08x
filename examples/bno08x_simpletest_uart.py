@@ -12,11 +12,11 @@ uart = busio.UART(board.TX, board.RX, baudrate=3000000, receiver_buffer_size=204
 
 # uncomment and comment out the above for use with Raspberry Pi
 # import serial
-# uart = serial.Serial("/dev/serial0", 115200)
+# uart = serial.Serial("/dev/serial0", 3000000)
 
-# for a USB Serial cable:
+# for USB Serial (via FTDI cable):
 # import serial
-# uart = serial.Serial("/dev/ttyUSB0", baudrate=115200)
+# uart = serial.Serial("/dev/ttyUSB0", baudrate=3000000)
 
 bno = BNO08X_UART(uart)
 
