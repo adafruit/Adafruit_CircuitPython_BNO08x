@@ -31,17 +31,17 @@ while True:
     time.sleep(0.1)
 
     print("Acceleration:")
-    accel_x, accel_y, accel_z = bno.accelerationdict
+    accel_x, accel_y, accel_z = bno.acceleration
     print("X: %0.6f  Y: %0.6f Z: %0.6f  m/s^2" % (accel_x, accel_y, accel_z))
     print("")
 
     print("Gyro:")
-    gyro_x, gyro_y, gyro_z = bno.gyrodict
+    gyro_x, gyro_y, gyro_z = bno.gyro
     print("X: %0.6f  Y: %0.6f Z: %0.6f rads/s" % (gyro_x, gyro_y, gyro_z))
     print("")
 
     print("Magnetometer:")
-    mag_x, mag_y, mag_z = bno.magneticdict
+    mag_x, mag_y, mag_z = bno.magnetic
     print("X: %0.6f  Y: %0.6f Z: %0.6f uT" % (mag_x, mag_y, mag_z))
     print("")
 
@@ -50,12 +50,12 @@ while True:
         linear_accel_x,
         linear_accel_y,
         linear_accel_z,
-    ) = bno.linear_accelerationdict
+    ) = bno.linear_acceleration
     print("X: %0.6f  Y: %0.6f Z: %0.6f m/s^2" % (linear_accel_x, linear_accel_y, linear_accel_z))
     print("")
 
     print("Rotation Vector Quaternion:")
-    quat_i, quat_j, quat_k, quat_real = bno.quaterniondict
+    quat_i, quat_j, quat_k, quat_real = bno.quaternion
     print("I: %0.6f  J: %0.6f K: %0.6f  Real: %0.6f" % (quat_i, quat_j, quat_k, quat_real))
     print("")
 
@@ -65,7 +65,7 @@ while True:
         geo_quat_j,
         geo_quat_k,
         geo_quat_real,
-    ) = bno.geomagnetic_quaterniondict
+    ) = bno.geomagnetic_quaternion
     print(
         "I: %0.6f  J: %0.6f K: %0.6f  Real: %0.6f"
         % (geo_quat_i, geo_quat_j, geo_quat_k, geo_quat_real)
@@ -78,7 +78,7 @@ while True:
         game_quat_j,
         game_quat_k,
         game_quat_real,
-    ) = bno.game_quaterniondict
+    ) = bno.game_quaternion
     print(
         "I: %0.6f  J: %0.6f K: %0.6f  Real: %0.6f"
         % (game_quat_i, game_quat_j, game_quat_k, game_quat_real)
