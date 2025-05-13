@@ -41,7 +41,7 @@ from .debug import channels, reports
 
 # For IDE type recognition
 try:
-    from typing import Any, Dict, List, Optional, Tuple, Union
+    from typing import Any, Optional
 
     from digitalio import DigitalInOut
 except ImportError:
