@@ -13,9 +13,9 @@ Introduction
     :target: https://github.com/adafruit/Adafruit_CircuitPython_BNO08x/actions
     :alt: Build Status
 
-.. image:: https://img.shields.io/badge/code%20style-black-000000.svg
-    :target: https://github.com/psf/black
-    :alt: Code Style: Black
+.. image:: https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json
+    :target: https://github.com/astral-sh/ruff
+    :alt: Code Style: Ruff
 
 Helper library for the Hillcrest Laboratories BNO08x IMUs
 
@@ -71,7 +71,7 @@ Usage Example
     bno.enable_feature(BNO_REPORT_ACCELEROMETER)
 
     while True:
-        accel_x, accel_y, accel_z = bno.acceleration  # pylint:disable=no-member
+        accel_x, accel_y, accel_z = bno.acceleration
         print("X: %0.6f  Y: %0.6f Z: %0.6f  m/s^2" % (accel_x, accel_y, accel_z))
 
 Documentation
