@@ -32,7 +32,7 @@ class BNO08X_SPI(BNO08X):
 
     # """
 
-    def __init__(self, spi_bus, cspin, intpin, resetpin, baudrate=1000000, debug=False):  # pylint:disable=too-many-arguments
+    def __init__(self, spi_bus, cspin, intpin, resetpin, baudrate=1000000, debug=False):
         self._spi = spi_device.SPIDevice(spi_bus, cspin, baudrate=baudrate, polarity=1, phase=1)
         self._int = intpin
         super().__init__(resetpin, debug)

@@ -24,7 +24,7 @@ while True:
     time.sleep(0.1)
 
     print("Magnetometer:")
-    mag_x, mag_y, mag_z = bno.magnetic  # pylint:disable=no-member
+    mag_x, mag_y, mag_z = bno.magnetic
     print("X: %0.6f  Y: %0.6f Z: %0.6f uT" % (mag_x, mag_y, mag_z))
     print("")
 
@@ -34,7 +34,7 @@ while True:
         game_quat_j,
         game_quat_k,
         game_quat_real,
-    ) = bno.game_quaternion  # pylint:disable=no-member
+    ) = bno.game_quaternion
     print(
         "I: %0.6f  J: %0.6f K: %0.6f  Real: %0.6f"
         % (game_quat_i, game_quat_j, game_quat_k, game_quat_real)

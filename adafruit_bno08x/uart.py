@@ -37,7 +37,6 @@ class BNO08X_UART(BNO08X):
         byte_buffer = bytearray(1)
 
         # request available size
-        # pylint:disable=pointless-string-statement
         """
         self._uart.write(b'\x7e') # start byte
         time.sleep(0.001)
@@ -48,7 +47,6 @@ class BNO08X_UART(BNO08X):
         if avail[0] != 0x7e and avail[1] != 0x01 and avail[4] != 0x7e:
             raise RuntimeError("Couldn't get available buffer size")
         """
-        # pylint:enable=pointless-string-statement
 
         pack_into("<H", self._data_buffer, 0, write_length)
         self._data_buffer[2] = channel

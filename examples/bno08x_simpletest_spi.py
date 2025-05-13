@@ -28,7 +28,7 @@ bno = BNO08X_SPI(spi, cs, int_pin, wake_pin, reset_pin, debug=True)
 
 while True:
     print("getting quat")
-    quat = bno.quaternion  # pylint:disable=no-member
+    quat = bno.quaternion
     print("Rotation Vector Quaternion:")
     print("I: %0.6f  J: %0.6f K: %0.6f  Real: %0.6f" % (quat.i, quat.j, quat.k, quat.real))
     print("")

@@ -71,7 +71,7 @@ Usage Example
     bno.enable_feature(BNO_REPORT_ACCELEROMETER)
 
     while True:
-        accel_x, accel_y, accel_z = bno.acceleration  # pylint:disable=no-member
+        accel_x, accel_y, accel_z = bno.acceleration
         print("X: %0.6f  Y: %0.6f Z: %0.6f  m/s^2" % (accel_x, accel_y, accel_z))
 
 Documentation
