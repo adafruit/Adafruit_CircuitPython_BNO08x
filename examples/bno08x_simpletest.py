@@ -2,8 +2,10 @@
 #
 # SPDX-License-Identifier: Unlicense
 import time
+
 import board
 import busio
+
 from adafruit_bno08x import (
     BNO_REPORT_ACCELEROMETER,
     BNO_REPORT_GYROSCOPE,
@@ -39,7 +41,5 @@ while True:
 
     print("Rotation Vector Quaternion:")
     quat_i, quat_j, quat_k, quat_real = bno.quaternion  # pylint:disable=no-member
-    print(
-        "I: %0.6f  J: %0.6f K: %0.6f  Real: %0.6f" % (quat_i, quat_j, quat_k, quat_real)
-    )
+    print("I: %0.6f  J: %0.6f K: %0.6f  Real: %0.6f" % (quat_i, quat_j, quat_k, quat_real))
     print("")

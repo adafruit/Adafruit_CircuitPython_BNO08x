@@ -2,11 +2,12 @@
 #
 # SPDX-License-Identifier: Unlicense
 import time
-import adafruit_bno08x
-from adafruit_bno08x.uart import BNO08X_UART
 
 import board  # pylint:disable=wrong-import-order
 import busio  # pylint:disable=wrong-import-order
+
+import adafruit_bno08x
+from adafruit_bno08x.uart import BNO08X_UART
 
 uart = busio.UART(board.TX, board.RX, baudrate=3000000, receiver_buffer_size=2048)
 
@@ -58,9 +59,7 @@ while True:
 
     print("Rotation Vector Quaternion:")
     quat_i, quat_j, quat_k, quat_real = bno.quaternion  # pylint:disable=no-member
-    print(
-        "I: %0.6f  J: %0.6f K: %0.6f  Real: %0.6f" % (quat_i, quat_j, quat_k, quat_real)
-    )
+    print("I: %0.6f  J: %0.6f K: %0.6f  Real: %0.6f" % (quat_i, quat_j, quat_k, quat_real))
     print("")
 
     # print("Linear Acceleration:")

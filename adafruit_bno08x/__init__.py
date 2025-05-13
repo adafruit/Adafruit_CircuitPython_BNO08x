@@ -1,4 +1,3 @@
-# pylint:disable=too-many-lines
 # SPDX-FileCopyrightText: Copyright (c) 2020 Bryan Siepert for Adafruit Industries
 #
 # SPDX-License-Identifier: MIT
@@ -25,14 +24,16 @@ Implementation Notes
 
 * `Adafruit's Bus Device library <https:# github.com/adafruit/Adafruit_CircuitPython_BusDevice>`_
 """
+
 from __future__ import annotations
 
 __version__ = "0.0.0+auto.0"
 __repo__ = "https:# github.com/adafruit/Adafruit_CircuitPython_BNO08x.git"
 
-from struct import unpack_from, pack_into
-from collections import namedtuple
 import time
+from collections import namedtuple
+from struct import pack_into, unpack_from
+
 from micropython import const
 
 # TODO: Remove on release
@@ -41,6 +42,7 @@ from .debug import channels, reports
 # For IDE type recognition
 try:
     from typing import Any, Dict, List, Optional, Tuple, Union
+
     from digitalio import DigitalInOut
 except ImportError:
     pass
@@ -186,9 +188,7 @@ _INITIAL_REPORTS = {
     BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR: (0.0, 0.0, 0.0, 0.0),
 }
 
-_ENABLED_ACTIVITIES = (
-    0x1FF  # All activities; 1 bit set for each of 8 activities, + Unknown
-)
+_ENABLED_ACTIVITIES = 0x1FF  # All activities; 1 bit set for each of 8 activities, + Unknown
 
 DATA_BUFFER_SIZE = const(512)  # data buffer size. obviously eats ram
 PacketHeader = namedtuple(
@@ -212,7 +212,7 @@ REPORT_ACCURACY_STATUS = [
 class PacketError(Exception):
     """Raised when the packet couldnt be parsed"""
 
-    pass  # pylint:disable=unnecessary-pass
+    pass
 
 
 def _elapsed(start_time: float) -> float:
@@ -250,9 +250,7 @@ def _parse_step_couter_report(report_bytes: bytearray) -> int:
 
 def _parse_stability_classifier_report(report_bytes: bytearray) -> str:
     classification_bitfield = unpack_from("<B", report_bytes, offset=4)[0]
-    return ["Unknown", "On Table", "Stationary", "Stable", "In motion"][
-        classification_bitfield
-    ]
+    return ["Unknown", "On Table", "Stationary", "Stable", "In motion"][classification_bitfield]
 
 
 # report_id
@@ -413,25 +411,15 @@ class Packet:
                     self.report_id,
                 )
             else:
-                outstr += "DBG::\t\t \t** UNKNOWN Report Type **: %s\n" % hex(
-                    self.report_id
-                )
+                outstr += "DBG::\t\t \t** UNKNOWN Report Type **: %s\n" % hex(self.report_id)
 
-            if (
-                self.report_id > 0xF0
-                and len(self.data) >= 6
-                and self.data[5] in reports
-            ):
+            if self.report_id > 0xF0 and len(self.data) >= 6 and self.data[5] in reports:
                 outstr += "DBG::\t\t \tSensor Report Type: %s(%s)\n" % (
                     reports[self.data[5]],
                     hex(self.data[5]),
                 )
 
-            if (
-                self.report_id == 0xFC
-                and len(self.data) >= 6
-                and self.data[1] in reports
-            ):
+            if self.report_id == 0xFC and len(self.data) >= 6 and self.data[1] in reports:
                 outstr += "DBG::\t\t \tEnabled Feature: %s(%s)\n" % (
                     reports[self.data[1]],
                     hex(self.data[5]),
@@ -443,8 +431,8 @@ class Packet:
         for idx, packet_byte in enumerate(self.data[:length]):
             packet_index = idx + 4
             if (packet_index % 4) == 0:
-                outstr += "\nDBG::\t\t[0x{:02X}] ".format(packet_index)
-            outstr += "0x{:02X} ".format(packet_byte)
+                outstr += f"\nDBG::\t\t[0x{packet_index:02X}] "
+            outstr += f"0x{packet_byte:02X} "
         outstr += "\n"
         outstr += "\t\t*******************************\n"
 
@@ -469,9 +457,7 @@ class Packet:
         sequence_number = unpack_from("<B", packet_bytes, offset=3)[0]
         data_length = max(0, packet_byte_count - 4)
 
-        header = PacketHeader(
-            channel_number, sequence_number, data_length, packet_byte_count
-        )
+        header = PacketHeader(channel_number, sequence_number, data_length, packet_byte_count)
         return header
 
     @classmethod
@@ -485,16 +471,14 @@ class Packet:
         return False
 
 
-class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-methods
+class BNO08X:
     """Library for the BNO08x IMUs from Hillcrest Laboratories
 
     :param ~busio.I2C i2c_bus: The I2C bus the BNO08x is connected to.
 
     """
 
-    def __init__(
-        self, reset: Optional[DigitalInOut] = None, debug: bool = False
-    ) -> None:
+    def __init__(self, reset: Optional[DigitalInOut] = None, debug: bool = False) -> None:
         self._debug: bool = debug
         self._reset: Optional[DigitalInOut] = reset
         self._dbg("********** __init__ *************")
@@ -524,7 +508,7 @@ class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-m
             try:
                 if self._check_id():
                     break
-            except:  # pylint:disable=bare-except
+            except Exception:
                 time.sleep(0.5)
         else:
             raise RuntimeError("Could not read ID")
@@ -554,9 +538,7 @@ class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-m
         try:
             return self._readings[BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR]
         except KeyError:
-            raise RuntimeError(
-                "No geomag quaternion report found, is it enabled?"
-            ) from None
+            raise RuntimeError("No geomag quaternion report found, is it enabled?") from None
 
     @property
     def game_quaternion(self) -> Optional[Tuple[float, float, float, float]]:
@@ -568,9 +550,7 @@ class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-m
         try:
             return self._readings[BNO_REPORT_GAME_ROTATION_VECTOR]
         except KeyError:
-            raise RuntimeError(
-                "No game quaternion report found, is it enabled?"
-            ) from None
+            raise RuntimeError("No game quaternion report found, is it enabled?") from None
 
     @property
     def steps(self) -> Optional[int]:
@@ -657,9 +637,7 @@ class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-m
             stability_classification = self._readings[BNO_REPORT_STABILITY_CLASSIFIER]
             return stability_classification
         except KeyError:
-            raise RuntimeError(
-                "No stability classification report found, is it enabled?"
-            ) from None
+            raise RuntimeError("No stability classification report found, is it enabled?") from None
 
     @property
     def activity_classification(self) -> Optional[dict]:
@@ -682,9 +660,7 @@ class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-m
             activity_classification = self._readings[BNO_REPORT_ACTIVITY_CLASSIFIER]
             return activity_classification
         except KeyError:
-            raise RuntimeError(
-                "No activity classification report found, is it enabled?"
-            ) from None
+            raise RuntimeError("No activity classification report found, is it enabled?") from None
 
     @property
     def raw_acceleration(self) -> Optional[Tuple[int, int, int]]:
@@ -694,9 +670,7 @@ class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-m
             raw_acceleration = self._readings[BNO_REPORT_RAW_ACCELEROMETER]
             return raw_acceleration
         except KeyError:
-            raise RuntimeError(
-                "No raw acceleration report found, is it enabled?"
-            ) from None
+            raise RuntimeError("No raw acceleration report found, is it enabled?") from None
 
     @property
     def raw_gyro(self) -> Optional[Tuple[int, int, int]]:
@@ -919,8 +893,8 @@ class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-m
             for idx, packet_byte in enumerate(report_bytes):
                 packet_index = idx
                 if (packet_index % 4) == 0:
-                    outstr += "\nDBG::\t\t[0x{:02X}] ".format(packet_index)
-                outstr += "0x{:02X} ".format(packet_byte)
+                    outstr += f"\nDBG::\t\t[0x{packet_index:02X}] "
+                outstr += f"0x{packet_byte:02X} "
             self._dbg(outstr)
             self._dbg("")
 
@@ -1013,9 +987,7 @@ class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-m
         self._dbg("\n** Waiting for packet **")
         # _a_ packet arrived, but which one?
         while True:
-            self._wait_for_packet_type(
-                _BNO_CHANNEL_CONTROL, _SHTP_REPORT_PRODUCT_ID_RESPONSE
-            )
+            self._wait_for_packet_type(_BNO_CHANNEL_CONTROL, _SHTP_REPORT_PRODUCT_ID_RESPONSE)
             sensor_id = self._parse_sensor_id()
             if sensor_id:
                 self._id_read = True
@@ -1051,7 +1023,6 @@ class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-m
         data_index = index + 4
         return unpack_from(fmt_string, self._data_buffer, offset=data_index)[0]
 
-    # pylint:disable=no-self-use
     @property
     def _data_ready(self) -> None:
         raise RuntimeError("Not implemented")
@@ -1060,7 +1031,7 @@ class BNO08X:  # pylint: disable=too-many-instance-attributes, too-many-public-m
         """Hardware reset the sensor to an initial unconfigured state"""
         if not self._reset:
             return
-        import digitalio  # pylint:disable=import-outside-toplevel
+        import digitalio  # noqa: PLC0415
 
         self._reset.direction = digitalio.Direction.OUTPUT
         self._reset.value = True

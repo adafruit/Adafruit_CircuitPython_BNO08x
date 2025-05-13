@@ -2,12 +2,14 @@
 # SPDX-License-Identifier: Unlicense
 
 import time
-from math import atan2, sqrt, pi
+from math import atan2, pi, sqrt
+
 from board import SCL, SDA
 from busio import I2C
+
 from adafruit_bno08x import (
-    BNO_REPORT_ROTATION_VECTOR,
     BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR,
+    BNO_REPORT_ROTATION_VECTOR,
 )
 from adafruit_bno08x.i2c import BNO08X_I2C
 

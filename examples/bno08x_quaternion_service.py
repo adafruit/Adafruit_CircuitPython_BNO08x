@@ -2,10 +2,12 @@
 #
 # SPDX-License-Identifier: MIT
 import time
+
 import board
 from adafruit_ble import BLERadio
 from adafruit_ble_adafruit.adafruit_service import AdafruitServerAdvertisement
 from adafruit_ble_adafruit.quaternion_service import QuaternionService
+
 from adafruit_bno08x import BNO08X
 
 i2c = board.I2C()  # uses board.SCL and board.SDA
@@ -33,7 +35,7 @@ while True:
     ble.stop_advertising()
 
     while ble.connected:
-        now_msecs = time.monotonic_ns() // 1000000  # pylint: disable=no-member
+        now_msecs = time.monotonic_ns() // 1000000
 
         if now_msecs - quat_last_read >= quat_svc.measurement_period:
             quat_svc.quaternion = bno.quaternion

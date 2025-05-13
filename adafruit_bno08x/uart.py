@@ -3,11 +3,13 @@
 # SPDX-License-Identifier: MIT
 """
 
-    Subclass of `adafruit_bno08x.BNO08X` to use UART
+Subclass of `adafruit_bno08x.BNO08X` to use UART
 
 """
+
 import time
 from struct import pack_into
+
 from . import (
     BNO08X,
     BNO_CHANNEL_EXE,
@@ -119,10 +121,7 @@ class BNO08X_UART(BNO08X):
         if packet_byte_count == 0:
             raise PacketError("No packet available")
 
-        self._dbg(
-            "channel %d has %d bytes available"
-            % (channel_number, packet_byte_count - 4)
-        )
+        self._dbg("channel %d has %d bytes available" % (channel_number, packet_byte_count - 4))
 
         if packet_byte_count > DATA_BUFFER_SIZE:
             self._data_buffer = bytearray(packet_byte_count)

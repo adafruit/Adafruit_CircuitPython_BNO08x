@@ -2,9 +2,11 @@
 #
 # SPDX-License-Identifier: Unlicense
 import time
+
 import board
 import busio
 from digitalio import DigitalInOut
+
 import adafruit_bno08x
 from adafruit_bno08x.i2c import BNO08X_I2C
 

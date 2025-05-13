@@ -2,8 +2,10 @@
 #
 # SPDX-License-Identifier: MIT
 import time
+
 import board
 import busio
+
 import adafruit_bno08x
 from adafruit_bno08x.i2c import BNO08X_I2C
 
@@ -49,17 +51,12 @@ while True:
         linear_accel_y,
         linear_accel_z,
     ) = bno.linear_acceleration  # pylint:disable=no-member
-    print(
-        "X: %0.6f  Y: %0.6f Z: %0.6f m/s^2"
-        % (linear_accel_x, linear_accel_y, linear_accel_z)
-    )
+    print("X: %0.6f  Y: %0.6f Z: %0.6f m/s^2" % (linear_accel_x, linear_accel_y, linear_accel_z))
     print("")
 
     print("Rotation Vector Quaternion:")
     quat_i, quat_j, quat_k, quat_real = bno.quaternion  # pylint:disable=no-member
-    print(
-        "I: %0.6f  J: %0.6f K: %0.6f  Real: %0.6f" % (quat_i, quat_j, quat_k, quat_real)
-    )
+    print("I: %0.6f  J: %0.6f K: %0.6f  Real: %0.6f" % (quat_i, quat_j, quat_k, quat_real))
     print("")
 
     print("Geomagnetic Rotation Vector Quaternion:")
@@ -108,11 +105,7 @@ while True:
         raw_accel_y,
         raw_accel_z,
     ) = bno.raw_acceleration
-    print(
-        "X: 0x{0:04X}  Y: 0x{1:04X} Z: 0x{2:04X} LSB".format(
-            raw_accel_x, raw_accel_y, raw_accel_z
-        )
-    )
+    print(f"X: 0x{raw_accel_x:04X}  Y: 0x{raw_accel_y:04X} Z: 0x{raw_accel_z:04X} LSB")
     print("")
 
     print("Raw Gyro:")
@@ -121,11 +114,7 @@ while True:
         raw_accel_y,
         raw_accel_z,
     ) = bno.raw_gyro
-    print(
-        "X: 0x{0:04X}  Y: 0x{1:04X} Z: 0x{2:04X} LSB".format(
-            raw_accel_x, raw_accel_y, raw_accel_z
-        )
-    )
+    print(f"X: 0x{raw_accel_x:04X}  Y: 0x{raw_accel_y:04X} Z: 0x{raw_accel_z:04X} LSB")
     print("")
 
     print("Raw Magnetometer:")
@@ -134,11 +123,7 @@ while True:
         raw_mag_y,
         raw_mag_z,
     ) = bno.raw_magnetic
-    print(
-        "X: 0x{0:04X}  Y: 0x{1:04X} Z: 0x{2:04X} LSB".format(
-            raw_mag_x, raw_mag_y, raw_mag_z
-        )
-    )
+    print(f"X: 0x{raw_mag_x:04X}  Y: 0x{raw_mag_y:04X} Z: 0x{raw_mag_z:04X} LSB")
     print("")
     time.sleep(0.4)
     if bno.shake:
