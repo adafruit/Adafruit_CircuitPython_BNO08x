@@ -99,6 +99,8 @@ ignore = [
     "PLR0904", # too-many-public-methods
     "PLR0912", # too-many-branches
     "PLR0916", # too-many-boolean-expressions
+    "UP007", # use x | y for type
+    "UP031", # use format instead of percent
 ]
 
 [format]

@@ -220,7 +220,7 @@ def _elapsed(start_time: float) -> float:
 
 
 ############ PACKET PARSING ###########################
-def _parse_sensor_report_data(report_bytes: bytearray) -> Tuple[Tuple, int]:
+def _parse_sensor_report_data(report_bytes: bytearray) -> tuple[tuple, int]:
     """Parses reports with only 16-bit fields"""
     data_offset = 4  # this may not always be true
     report_id = report_bytes[0]
@@ -260,7 +260,7 @@ def _parse_stability_classifier_report(report_bytes: bytearray) -> str:
 # report_interval
 # batch_interval_word
 # sensor_specific_configuration_word
-def _parse_get_feature_response_report(report_bytes: bytearray) -> Tuple[Any, ...]:
+def _parse_get_feature_response_report(report_bytes: bytearray) -> tuple[Any, ...]:
     return unpack_from("<BBBHIII", report_bytes)
 
 
@@ -271,7 +271,7 @@ def _parse_get_feature_response_report(report_bytes: bytearray) -> Tuple[Any, ..
 # 4 Page Number + EOS
 # 5 Most likely state
 # 6-15 Classification (10 x Page Number) + confidence
-def _parse_activity_classifier_report(report_bytes: bytearray) -> Dict[str, str]:
+def _parse_activity_classifier_report(report_bytes: bytearray) -> dict[str, str]:
     activities = [
         "Unknown",
         "In-Vehicle",  # look
@@ -304,7 +304,7 @@ def _parse_shake_report(report_bytes: bytearray) -> bool:
     return (shake_bitfield & 0x111) > 0
 
 
-def parse_sensor_id(buffer: bytearray) -> Tuple[int, ...]:
+def parse_sensor_id(buffer: bytearray) -> tuple[int, ...]:
     """Parse the fields of a product id report"""
     if not buffer[0] == _SHTP_REPORT_PRODUCT_ID_RESPONSE:
         raise AttributeError("Wrong report id for sensor id: %s" % hex(buffer[0]))
@@ -318,7 +318,7 @@ def parse_sensor_id(buffer: bytearray) -> Tuple[int, ...]:
     return (sw_part_number, sw_major, sw_minor, sw_patch, sw_build_number)
 
 
-def _parse_command_response(report_bytes: bytearray) -> Tuple[Any, Any]:
+def _parse_command_response(report_bytes: bytearray) -> tuple[Any, Any]:
     # CMD response report:
     # 0 Report ID = 0xF1
     # 1 Sequence number
@@ -336,7 +336,7 @@ def _insert_command_request_report(
     command: int,
     buffer: bytearray,
     next_sequence_number: int,
-    command_params: Optional[List[int]] = None,
+    command_params: Optional[list[int]] = None,
 ) -> None:
     if command_params and len(command_params) > 9:
         raise AttributeError(
@@ -362,7 +362,7 @@ def _report_length(report_id: int) -> int:
     return _REPORT_LENGTHS[report_id]
 
 
-def _separate_batch(packet: Packet, report_slices: List[Any]) -> None:
+def _separate_batch(packet: Packet, report_slices: list[Any]) -> None:
     # get first report id, loop up its report length
     # read that many bytes, parse them
     next_byte_index = 0
@@ -401,10 +401,10 @@ class Packet:
             channels[self.channel_number],
             self.channel_number,
         )
-        if self.channel_number in [
+        if self.channel_number in {
             _BNO_CHANNEL_CONTROL,
             _BNO_CHANNEL_INPUT_SENSOR_REPORTS,
-        ]:
+        }:
             if self.report_id in reports:
                 outstr += "DBG::\t\t \tReport Type: %s (0x%x)\n" % (
                     reports[self.report_id],
@@ -484,11 +484,11 @@ class BNO08X:
         self._dbg("********** __init__ *************")
         self._data_buffer: bytearray = bytearray(DATA_BUFFER_SIZE)
         self._command_buffer: bytearray = bytearray(12)
-        self._packet_slices: List[Any] = []
+        self._packet_slices: list[Any] = []
 
         # TODO: this is wrong there should be one per channel per direction
-        self._sequence_number: List[int] = [0, 0, 0, 0, 0, 0]
-        self._two_ended_sequence_numbers: Dict[int, int] = {}
+        self._sequence_number: list[int] = [0, 0, 0, 0, 0, 0]
+        self._two_ended_sequence_numbers: dict[int, int] = {}
         self._dcd_saved_at: float = -1
         self._me_calibration_started_at: float = -1.0
         self._calibration_complete = False
@@ -497,7 +497,7 @@ class BNO08X:
         self._init_complete = False
         self._id_read = False
         # for saving the most recent reading when decoding several packets
-        self._readings: Dict[int, Any] = {}
+        self._readings: dict[int, Any] = {}
         self.initialize()
 
     def initialize(self) -> None:
@@ -514,7 +514,7 @@ class BNO08X:
             raise RuntimeError("Could not read ID")
 
     @property
-    def magnetic(self) -> Optional[Tuple[float, float, float]]:
+    def magnetic(self) -> Optional[tuple[float, float, float]]:
         """A tuple of the current magnetic field measurements on the X, Y, and Z axes"""
         self._process_available_packets()  # decorator?
         try:
@@ -523,7 +523,7 @@ class BNO08X:
             raise RuntimeError("No magfield report found, is it enabled?") from None
 
     @property
-    def quaternion(self) -> Optional[Tuple[float, float, float, float]]:
+    def quaternion(self) -> Optional[tuple[float, float, float, float]]:
         """A quaternion representing the current rotation vector"""
         self._process_available_packets()
         try:
@@ -532,7 +532,7 @@ class BNO08X:
             raise RuntimeError("No quaternion report found, is it enabled?") from None
 
     @property
-    def geomagnetic_quaternion(self) -> Optional[Tuple[float, float, float, float]]:
+    def geomagnetic_quaternion(self) -> Optional[tuple[float, float, float, float]]:
         """A quaternion representing the current geomagnetic rotation vector"""
         self._process_available_packets()
         try:
@@ -541,7 +541,7 @@ class BNO08X:
             raise RuntimeError("No geomag quaternion report found, is it enabled?") from None
 
     @property
-    def game_quaternion(self) -> Optional[Tuple[float, float, float, float]]:
+    def game_quaternion(self) -> Optional[tuple[float, float, float, float]]:
         """A quaternion representing the current rotation vector expressed as a quaternion with no
         specific reference for heading, while roll and pitch are referenced against gravity. To
         prevent sudden jumps in heading due to corrections, the `game_quaternion` property is not
@@ -562,7 +562,7 @@ class BNO08X:
             raise RuntimeError("No steps report found, is it enabled?") from None
 
     @property
-    def linear_acceleration(self) -> Optional[Tuple[float, float, float]]:
+    def linear_acceleration(self) -> Optional[tuple[float, float, float]]:
         """A tuple representing the current linear acceleration values on the X, Y, and Z
         axes in meters per second squared"""
         self._process_available_packets()
@@ -572,7 +572,7 @@ class BNO08X:
             raise RuntimeError("No lin. accel report found, is it enabled?") from None
 
     @property
-    def acceleration(self) -> Optional[Tuple[float, float, float]]:
+    def acceleration(self) -> Optional[tuple[float, float, float]]:
         """A tuple representing the acceleration measurements on the X, Y, and Z
         axes in meters per second squared"""
         self._process_available_packets()
@@ -582,7 +582,7 @@ class BNO08X:
             raise RuntimeError("No accel report found, is it enabled?") from None
 
     @property
-    def gravity(self) -> Optional[Tuple[float, float, float]]:
+    def gravity(self) -> Optional[tuple[float, float, float]]:
         """A tuple representing the gravity vector in the X, Y, and Z components
         axes in meters per second squared"""
         self._process_available_packets()
@@ -592,7 +592,7 @@ class BNO08X:
             raise RuntimeError("No gravity report found, is it enabled?") from None
 
     @property
-    def gyro(self) -> Optional[Tuple[float, float, float]]:
+    def gyro(self) -> Optional[tuple[float, float, float]]:
         """A tuple representing Gyro's rotation measurements on the X, Y, and Z
         axes in radians per second"""
         self._process_available_packets()
@@ -663,7 +663,7 @@ class BNO08X:
             raise RuntimeError("No activity classification report found, is it enabled?") from None
 
     @property
-    def raw_acceleration(self) -> Optional[Tuple[int, int, int]]:
+    def raw_acceleration(self) -> Optional[tuple[int, int, int]]:
         """Returns the sensor's raw, unscaled value from the accelerometer registers"""
         self._process_available_packets()
         try:
@@ -673,7 +673,7 @@ class BNO08X:
             raise RuntimeError("No raw acceleration report found, is it enabled?") from None
 
     @property
-    def raw_gyro(self) -> Optional[Tuple[int, int, int]]:
+    def raw_gyro(self) -> Optional[tuple[int, int, int]]:
         """Returns the sensor's raw, unscaled value from the gyro registers"""
         self._process_available_packets()
         try:
@@ -683,7 +683,7 @@ class BNO08X:
             raise RuntimeError("No raw gyro report found, is it enabled?") from None
 
     @property
-    def raw_magnetic(self) -> Optional[Tuple[int, int, int]]:
+    def raw_magnetic(self) -> Optional[tuple[int, int, int]]:
         """Returns the sensor's raw, unscaled value from the magnetometer registers"""
         self._process_available_packets()
         try:
@@ -728,7 +728,7 @@ class BNO08X:
         )
         return self._magnetometer_accuracy
 
-    def _send_me_command(self, subcommand_params: Optional[List[int]]) -> None:
+    def _send_me_command(self, subcommand_params: Optional[list[int]]) -> None:
         start_time = time.monotonic()
         local_buffer = self._command_buffer
         _insert_command_request_report(
@@ -800,10 +800,10 @@ class BNO08X:
                         return new_packet
                 else:
                     return new_packet
-            if new_packet.channel_number not in (
+            if new_packet.channel_number not in {
                 BNO_CHANNEL_EXE,
                 BNO_CHANNEL_SHTP_COMMAND,
-            ):
+            }:
                 self._dbg("passing packet to handler for de-slicing")
                 self._handle_packet(new_packet)
 
@@ -1060,10 +1060,10 @@ class BNO08X:
         self._dbg("OK!")
         # all is good!
 
-    def _send_packet(self, channel: int, data: bytearray) -> Optional[int]:
+    def _send_packet(self, channel: int, data: bytearray) -> Optional[int]:  # noqa: PLR6301
         raise RuntimeError("Not implemented")
 
-    def _read_packet(self) -> Optional[Packet]:
+    def _read_packet(self) -> Optional[Packet]:  # noqa: PLR6301
         raise RuntimeError("Not implemented")
 
     def _increment_report_seq(self, report_id: int) -> None:
