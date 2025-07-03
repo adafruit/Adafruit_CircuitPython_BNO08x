@@ -948,7 +948,7 @@ class BNO08X:
     # TODO2: I think this should call an fn that imports all the bits for the given feature
     # so we're not carrying around  stuff for extra features
     def enable_feature(
-        self, 
+        self,
         feature_id: int,
         report_interval: int = _DEFAULT_REPORT_INTERVAL,
     ) -> None:
