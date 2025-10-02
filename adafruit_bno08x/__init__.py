@@ -933,7 +933,7 @@ class BNO08X:
     @staticmethod
     def _get_feature_enable_report(
         feature_id: int,
-        report_interval: int = _DEFAULT_REPORT_INTERVAL,
+        report_interval: int,
         sensor_specific_config: int = 0,
     ) -> bytearray:
         set_feature_report = bytearray(17)
@@ -947,16 +947,20 @@ class BNO08X:
     # TODO: add docs for available features
     # TODO2: I think this should call an fn that imports all the bits for the given feature
     # so we're not carrying around  stuff for extra features
-    def enable_feature(self, feature_id: int) -> None:
+    def enable_feature(
+        self,
+        feature_id: int,
+        report_interval: int = _DEFAULT_REPORT_INTERVAL,
+    ) -> None:
         """Used to enable a given feature of the BNO08x"""
         self._dbg("\n********** Enabling feature id:", feature_id, "**********")
 
         if feature_id == BNO_REPORT_ACTIVITY_CLASSIFIER:
             set_feature_report = self._get_feature_enable_report(
-                feature_id, sensor_specific_config=_ENABLED_ACTIVITIES
+                feature_id, report_interval, _ENABLED_ACTIVITIES
             )
         else:
-            set_feature_report = self._get_feature_enable_report(feature_id)
+            set_feature_report = self._get_feature_enable_report(feature_id, report_interval)
 
         feature_dependency = _RAW_REPORTS.get(feature_id, None)
         # if the feature was enabled it will have a key in the readings dict

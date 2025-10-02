@@ -66,9 +66,10 @@ Usage Example
     from adafruit_bno08x.i2c import BNO08X_I2C
     from adafruit_bno08x import BNO_REPORT_ACCELEROMETER
 
+    REPORT_INTERVAL = const(100000) # 100 Hz
     i2c = busio.I2C(board.SCL, board.SDA)
     bno = BNO08X_I2C(i2c)
-    bno.enable_feature(BNO_REPORT_ACCELEROMETER)
+    bno.enable_feature(BNO_REPORT_ACCELEROMETER, REPORT_INTERVAL)
 
     while True:
         accel_x, accel_y, accel_z = bno.acceleration
