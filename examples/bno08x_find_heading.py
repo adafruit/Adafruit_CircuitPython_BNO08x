@@ -23,10 +23,10 @@ bno.enable_feature(BNO_REPORT_GEOMAGNETIC_ROTATION_VECTOR)
 
 def find_heading(dqw, dqx, dqy, dqz):
     norm = sqrt(dqw * dqw + dqx * dqx + dqy * dqy + dqz * dqz)
-    dqw = dqw / norm
-    dqx = dqx / norm
-    dqy = dqy / norm
-    dqz = dqz / norm
+    dqw /= norm
+    dqx /= norm
+    dqy /= norm
+    dqz /= norm
 
     ysqr = dqy * dqy
 

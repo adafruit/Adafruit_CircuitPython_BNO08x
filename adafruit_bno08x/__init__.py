@@ -380,7 +380,7 @@ def _separate_batch(packet: Packet, report_slices: list[Any]) -> None:
         report_slice = packet.data[next_byte_index : next_byte_index + required_bytes]
 
         report_slices.append([report_slice[0], report_slice])
-        next_byte_index = next_byte_index + required_bytes
+        next_byte_index += required_bytes
 
 
 class Packet:
